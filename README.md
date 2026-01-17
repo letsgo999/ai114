@@ -11,7 +11,9 @@ AI공부방 10기 수강생을 위한 업무 자동화 코칭 가이드 웹앱
 
 ## 주요 기능
 
-### ✅ 완료된 기능 (Phase 1)
+### ✅ 완료된 기능 (Phase 1 + Phase 2)
+
+#### Phase 1 (기본 기능)
 1. **메인 랜딩 페이지**: AI 도구 카테고리 표시, 서비스 소개
 2. **업무 입력 폼**: 반복 업무 정보 입력 (조직, 부서, 이름, 직무, 반복주기, 자동화 요청)
 3. **AI 도구 자동 추천 엔진**: 키워드 기반 매칭 + 점수 산정으로 TOP 5 도구 추천
@@ -19,20 +21,29 @@ AI공부방 10기 수강생을 위한 업무 자동화 코칭 가이드 웹앱
 5. **PDF 다운로드**: jsPDF + html2canvas 기반 보고서 다운로드
 6. **코치 대시보드**: 간단 비밀번호 인증, 수강생 업무 목록 조회, 코멘트 작성
 
-### 🔜 예정 기능 (Phase 2-3)
-- 이메일 알림 (Gmail Compose URL)
-- CSV 업로드/다운로드
-- 히스토리 조회
-- 통계 대시보드 강화
+#### Phase 2 (확장 기능)
+1. **Gmail Compose URL 알림**: 보고서/코멘트 알림을 Gmail로 손쉽게 전송
+2. **CSV 업로드 (대량 등록)**: 여러 수강생 업무를 CSV로 일괄 등록
+3. **CSV 다운로드**: 전체 업무 및 코멘트 데이터를 CSV로 내보내기
+4. **통계 대시보드**: Chart.js 기반 카테고리별/자동화 수준별 차트 시각화
+5. **수강생별 히스토리 뷰**: 이메일로 자신의 업무 이력 조회
 
-## API 엔드포인트
+## 페이지 및 API 엔드포인트
+
+### 페이지 라우트
+
+| 경로 | 설명 |
+|------|------|
+| `/` | 메인 랜딩 페이지 |
+| `/submit` | 업무 입력 폼 페이지 |
+| `/report/:id` | 자가진단 보고서 페이지 |
+| `/coach` | 코치 대시보드 (비밀번호: coach2026!) |
+| `/history` | 수강생 히스토리 조회 페이지 |
+
+### API 엔드포인트
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | `/` | 메인 랜딩 페이지 |
-| GET | `/submit` | 업무 입력 폼 페이지 |
-| GET | `/report/:id` | 자가진단 보고서 페이지 |
-| GET | `/coach` | 코치 대시보드 |
 | GET | `/api/init` | 데이터베이스 초기화 (개발용) |
 | GET | `/api/tools` | AI 도구 목록 조회 |
 | GET | `/api/tools/categories` | 카테고리별 도구 통계 |
@@ -42,6 +53,11 @@ AI공부방 10기 수강생을 위한 업무 자동화 코칭 가이드 웹앱
 | POST | `/api/admin/login` | 코치 로그인 |
 | GET | `/api/admin/tasks` | 모든 업무 조회 (코치용) |
 | POST | `/api/admin/comments` | 코치 코멘트 작성 |
+| GET | `/api/admin/stats` | 통계 데이터 (전체/카테고리별/자동화별) |
+| GET | `/api/export/tasks` | CSV 다운로드 (전체 데이터) |
+| POST | `/api/import/tasks` | CSV 업로드 (일괄 등록) |
+| GET | `/api/history/:email` | 수강생별 이력 조회 |
+| POST | `/api/email/compose` | Gmail Compose URL 생성 |
 
 ## 데이터 모델
 
@@ -77,7 +93,7 @@ AI공부방 10기 수강생을 위한 업무 자동화 코칭 가이드 웹앱
 
 ## 기술 스택
 
-- **Frontend**: HTML5 + Tailwind CSS (CDN) + Vanilla JavaScript
+- **Frontend**: HTML5 + Tailwind CSS (CDN) + Vanilla JavaScript + Chart.js
 - **Backend**: Hono (TypeScript)
 - **Database**: Cloudflare D1 (SQLite)
 - **Hosting**: Cloudflare Pages (로컬: wrangler pages dev)
@@ -89,26 +105,24 @@ AI공부방 10기 수강생을 위한 업무 자동화 코칭 가이드 웹앱
 # 의존성 설치
 npm install
 
-# 데이터베이스 마이그레이션 (최초 1회)
-npm run db:migrate:local
-
-# 시드 데이터 적용 (최초 1회)
-npm run db:seed:local
-
 # 빌드
 npm run build
 
-# 개발 서버 실행
+# 개발 서버 실행 (DB 자동 초기화)
 npm run dev:sandbox
 
 # 또는 PM2로 실행
 pm2 start ecosystem.config.cjs
+
+# 데이터베이스 초기화 (브라우저 또는 curl)
+curl http://localhost:3000/api/init
 ```
 
 ## URL
 
 - **개발 서버 (샌드박스)**: https://3000-i1bccqox4cqz1t0t1s10g-d0b9e1e2.sandbox.novita.ai
 - **코치 대시보드**: `/coach` (비밀번호: coach2026!)
+- **히스토리 조회**: `/history`
 
 ## 사용 방법
 
@@ -117,20 +131,30 @@ pm2 start ecosystem.config.cjs
 2. 업무 입력 폼에서 반복 업무 정보 입력
 3. AI 분석 결과와 추천 도구 확인
 4. PDF 다운로드로 보고서 저장
+5. `/history`에서 이메일로 이전 업무 이력 조회
 
 ### 코치 (디마불사)
 1. `/coach`로 이동
 2. 비밀번호 입력하여 로그인
-3. 수강생 업무 목록에서 코멘트 작성
-4. 추가 도구, 팁, 학습 우선순위 입력
+3. 통계 대시보드에서 현황 파악 (차트)
+4. 수강생 업무 목록에서 코멘트 작성
+5. "메일" 버튼으로 Gmail 알림 발송
+6. CSV 업로드로 대량 등록, CSV 다운로드로 데이터 백업
 
 ## 배포 상태
 
 - **플랫폼**: Cloudflare Pages (로컬 개발 중)
 - **상태**: 🟢 로컬 개발 서버 활성화
-- **Phase**: Phase 1 완료
+- **Phase**: Phase 1 + Phase 2 완료
 
 ## 업데이트 이력
+
+- **2026-01-17**: Phase 2 구현 완료
+  - Gmail Compose URL 알림 기능
+  - CSV 업로드/다운로드 기능
+  - 통계 대시보드 (Chart.js 차트)
+  - 수강생별 히스토리 뷰 (/history)
+  - 동적 URL 처리 (요청 호스트 기반)
 
 - **2026-01-17**: Phase 1 구현 완료
   - 프로젝트 셋업 (Hono + Cloudflare Pages)

@@ -394,6 +394,350 @@ app.post('/api/admin/comments', async (c) => {
 })
 
 // =============================================
+// Phase 2: 추가 API 엔드포인트
+// =============================================
+
+// GET /api/admin/stats - 통계 데이터
+app.get('/api/admin/stats', async (c) => {
+  try {
+    // 전체 통계
+    const totalResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tasks').first<{count: number}>();
+    const analyzedResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'analyzed'").first<{count: number}>();
+    const commentedResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'commented'").first<{count: number}>();
+    
+    // 카테고리별 통계
+    const { results: categoryStats } = await c.env.DB.prepare(`
+      SELECT task_category as category, COUNT(*) as count 
+      FROM tasks 
+      WHERE task_category IS NOT NULL 
+      GROUP BY task_category 
+      ORDER BY count DESC
+    `).all();
+    
+    // 자동화 수준별 통계
+    const { results: automationStats } = await c.env.DB.prepare(`
+      SELECT automation_level as level, COUNT(*) as count 
+      FROM tasks 
+      WHERE automation_level IS NOT NULL 
+      GROUP BY automation_level
+    `).all();
+    
+    // 부서별 통계
+    const { results: departmentStats } = await c.env.DB.prepare(`
+      SELECT department, COUNT(*) as count 
+      FROM tasks 
+      GROUP BY department 
+      ORDER BY count DESC 
+      LIMIT 10
+    `).all();
+    
+    // 최근 7일간 등록 추이
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const { results: dailyStats } = await c.env.DB.prepare(`
+      SELECT 
+        DATE(created_at / 1000, 'unixepoch') as date,
+        COUNT(*) as count 
+      FROM tasks 
+      WHERE created_at >= ? 
+      GROUP BY date 
+      ORDER BY date
+    `).bind(sevenDaysAgo).all();
+    
+    return c.json({
+      success: true,
+      data: {
+        total: totalResult?.count || 0,
+        analyzed: analyzedResult?.count || 0,
+        commented: commentedResult?.count || 0,
+        pending: (totalResult?.count || 0) - (commentedResult?.count || 0),
+        categoryStats,
+        automationStats,
+        departmentStats,
+        dailyStats
+      }
+    });
+  } catch (error: any) {
+    console.error('Stats error:', error);
+    return c.json({ success: false, error: error?.message || 'Failed to fetch stats' }, 500);
+  }
+});
+
+// GET /api/export/tasks - CSV 내보내기
+app.get('/api/export/tasks', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(`
+      SELECT 
+        t.organization, t.department, t.name, t.email,
+        t.job_description, t.repeat_cycle, t.automation_request,
+        t.estimated_hours, t.task_category, t.automation_level,
+        t.status, t.coach_comment_status,
+        DATETIME(t.created_at / 1000, 'unixepoch') as created_date,
+        c.general_comment, c.additional_tools, c.tips, c.learning_priority
+      FROM tasks t
+      LEFT JOIN comments c ON t.id = c.task_id AND c.status = 'published'
+      ORDER BY t.created_at DESC
+    `).all();
+    
+    // CSV 헤더
+    const headers = [
+      '구분/조직', '부서', '성명', '이메일', '하는 일/직무', '반복주기',
+      'AI 자동화 요청사항', '예상소요시간', '업무유형', '자동화수준',
+      '상태', '코멘트상태', '등록일시', '코치코멘트', '추가추천도구', '팁', '학습우선순위'
+    ];
+    
+    // CSV 데이터 생성
+    const csvRows = [headers.join(',')];
+    for (const row of results as any[]) {
+      const values = [
+        row.organization, row.department, row.name, row.email,
+        row.job_description, row.repeat_cycle, row.automation_request,
+        row.estimated_hours, row.task_category, row.automation_level,
+        row.status, row.coach_comment_status, row.created_date,
+        row.general_comment || '', row.additional_tools || '', row.tips || '', row.learning_priority || ''
+      ].map(v => `"${String(v || '').replace(/"/g, '""')}"`);
+      csvRows.push(values.join(','));
+    }
+    
+    const csv = csvRows.join('\n');
+    const bom = '\uFEFF'; // UTF-8 BOM for Excel
+    
+    return new Response(bom + csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="ai_coaching_tasks_${new Date().toISOString().split('T')[0]}.csv"`
+      }
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: error?.message || 'Export failed' }, 500);
+  }
+});
+
+// POST /api/import/tasks - CSV 업로드 (일괄 업무 등록)
+app.post('/api/import/tasks', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { tasks: taskList } = body;
+    
+    if (!Array.isArray(taskList) || taskList.length === 0) {
+      return c.json({ success: false, error: 'tasks 배열이 필요합니다.' }, 400);
+    }
+    
+    // AI 도구 목록 조회
+    const { results: tools } = await c.env.DB.prepare(
+      'SELECT * FROM ai_tools WHERE is_active = 1'
+    ).all<AITool>();
+    
+    const now = Date.now();
+    const results: any[] = [];
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const task of taskList) {
+      try {
+        // 필수 필드 검증
+        if (!task.organization || !task.department || !task.name || 
+            !task.job_description || !task.repeat_cycle || !task.automation_request || !task.email) {
+          results.push({ name: task.name, status: 'failed', error: '필수 필드 누락' });
+          failCount++;
+          continue;
+        }
+        
+        // AI 추천 생성
+        const recommendation = recommendTools(
+          tools as AITool[],
+          task.job_description,
+          task.automation_request,
+          task.estimated_hours || 4
+        );
+        
+        const taskId = generateId();
+        
+        await c.env.DB.prepare(`
+          INSERT INTO tasks (
+            id, organization, department, name, job_description, repeat_cycle,
+            automation_request, email, current_tools, estimated_hours,
+            recommended_tools, task_category, automation_level, status,
+            coach_comment_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'analyzed', 'none', ?, ?)
+        `).bind(
+          taskId,
+          task.organization,
+          task.department,
+          task.name,
+          task.job_description,
+          task.repeat_cycle,
+          task.automation_request,
+          task.email,
+          task.current_tools || null,
+          task.estimated_hours || 4,
+          JSON.stringify(recommendation),
+          recommendation.category,
+          recommendation.automation_level,
+          now,
+          now
+        ).run();
+        
+        results.push({ name: task.name, status: 'success', task_id: taskId });
+        successCount++;
+      } catch (err: any) {
+        results.push({ name: task.name, status: 'failed', error: err?.message || 'Unknown error' });
+        failCount++;
+      }
+    }
+    
+    return c.json({
+      success: true,
+      data: {
+        total: taskList.length,
+        success: successCount,
+        failed: failCount,
+        results
+      }
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: error?.message || 'Import failed' }, 500);
+  }
+});
+
+// GET /api/history/:email - 수강생별 이력 조회
+app.get('/api/history/:email', async (c) => {
+  try {
+    const email = c.req.param('email');
+    
+    const { results } = await c.env.DB.prepare(`
+      SELECT 
+        t.*,
+        c.general_comment, c.additional_tools, c.tips, c.learning_priority
+      FROM tasks t
+      LEFT JOIN comments c ON t.id = c.task_id AND c.status = 'published'
+      WHERE t.email = ?
+      ORDER BY t.created_at DESC
+    `).bind(email).all();
+    
+    // 통계 계산
+    const stats = {
+      totalTasks: results.length,
+      commented: results.filter((r: any) => r.coach_comment_status === 'published').length,
+      categories: {} as Record<string, number>,
+      totalEstimatedHours: 0,
+      totalSavedHours: 0
+    };
+    
+    for (const task of results as any[]) {
+      // 카테고리 집계
+      if (task.task_category) {
+        stats.categories[task.task_category] = (stats.categories[task.task_category] || 0) + 1;
+      }
+      // 시간 집계
+      stats.totalEstimatedHours += task.estimated_hours || 0;
+      if (task.recommended_tools) {
+        try {
+          const rec = JSON.parse(task.recommended_tools);
+          stats.totalSavedHours += rec.time_saving?.saved_hours || 0;
+        } catch {}
+      }
+    }
+    
+    return c.json({
+      success: true,
+      data: {
+        email,
+        stats,
+        tasks: results
+      }
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: error?.message || 'Failed to fetch history' }, 500);
+  }
+});
+
+// POST /api/email/compose - Gmail 작성 URL 생성
+app.post('/api/email/compose', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { task_id, type } = body; // type: 'report' | 'comment'
+    
+    const task = await c.env.DB.prepare(
+      'SELECT * FROM tasks WHERE id = ?'
+    ).bind(task_id).first<Task>();
+    
+    if (!task) {
+      return c.json({ success: false, error: '업무를 찾을 수 없습니다.' }, 404);
+    }
+    
+    let subject = '';
+    let bodyText = '';
+    // 동적 URL 생성 (요청의 호스트 사용)
+    const host = c.req.header('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const reportUrl = `${protocol}://${host}/report/${task_id}`;
+    
+    if (type === 'report') {
+      subject = `[AI공부방] ${task.name}님의 AI 활용 업무 자동화 진단 보고서`;
+      bodyText = `안녕하세요, ${task.name}님!
+
+AI공부방 10기 수강생님의 업무 자동화 진단 보고서가 준비되었습니다.
+
+📋 업무 요약
+- 업무: ${task.job_description}
+- 반복주기: ${task.repeat_cycle}
+- 업무 유형: ${task.task_category || '분석중'}
+
+📊 분석 결과를 확인하려면 아래 링크를 클릭하세요:
+${reportUrl}
+
+보고서에서 추천 AI 도구와 예상 시간 절감 효과를 확인하실 수 있습니다.
+PDF 다운로드도 가능합니다.
+
+문의사항이 있으시면 언제든 연락주세요.
+
+감사합니다.
+디마불사 코치 드림
+(디지털 마케팅 프로 컨설턴트, AI 활용 전문코치)`;
+    } else if (type === 'comment') {
+      // 코치 코멘트 알림
+      const comment = await c.env.DB.prepare(
+        'SELECT * FROM comments WHERE task_id = ? AND status = "published"'
+      ).bind(task_id).first<Comment>();
+      
+      subject = `[AI공부방] ${task.name}님, 코치 코멘트가 추가되었습니다!`;
+      bodyText = `안녕하세요, ${task.name}님!
+
+제출해주신 "${task.job_description}" 업무에 대한 코치 코멘트가 추가되었습니다.
+
+${comment?.general_comment ? `💬 코치 코멘트:\n${comment.general_comment}\n\n` : ''}
+${comment?.learning_priority ? `📚 학습 우선순위:\n${comment.learning_priority}\n\n` : ''}
+${comment?.tips ? `💡 팁:\n${comment.tips}\n\n` : ''}
+
+전체 보고서 확인하기:
+${reportUrl}
+
+AI 도구 활용에 대해 궁금한 점이 있으시면 편하게 질문해주세요!
+
+감사합니다.
+디마불사 코치 드림`;
+    } else {
+      return c.json({ success: false, error: '유효하지 않은 type입니다.' }, 400);
+    }
+    
+    // Gmail Compose URL 생성
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(task.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    
+    return c.json({
+      success: true,
+      data: {
+        gmail_url: gmailUrl,
+        to: task.email,
+        subject,
+        body: bodyText
+      }
+    });
+  } catch (error: any) {
+    return c.json({ success: false, error: error?.message || 'Failed to compose email' }, 500);
+  }
+});
+
+// =============================================
 // HTML 페이지 라우트
 // =============================================
 
@@ -416,6 +760,11 @@ app.get('/report/:id', (c) => {
 // 코치 대시보드 페이지
 app.get('/coach', (c) => {
   return c.html(renderCoachPage())
+})
+
+// 수강생 히스토리 페이지
+app.get('/history', (c) => {
+  return c.html(renderHistoryPage())
 })
 
 // =============================================
@@ -558,9 +907,14 @@ function renderMainPage(): string {
       <p class="text-white/90 mb-8 max-w-xl mx-auto">
         AI공부방 10기 수강생 여러분, 반복 업무에서 벗어나 더 창의적인 일에 집중하세요.
       </p>
-      <a href="/submit" class="inline-block bg-white text-purple-700 px-8 py-4 rounded-full text-lg font-semibold hover:bg-gray-100 transition shadow-lg">
-        <i class="fas fa-arrow-right mr-2"></i>업무 입력하기
-      </a>
+      <div class="flex justify-center gap-4 flex-wrap">
+        <a href="/submit" class="inline-block bg-white text-purple-700 px-8 py-4 rounded-full text-lg font-semibold hover:bg-gray-100 transition shadow-lg">
+          <i class="fas fa-arrow-right mr-2"></i>업무 입력하기
+        </a>
+        <a href="/history" class="inline-block bg-white/20 text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-white/30 transition shadow-lg border border-white/30">
+          <i class="fas fa-history mr-2"></i>내 이력 조회
+        </a>
+      </div>
     </div>
   </section>
 
@@ -1123,10 +1477,9 @@ function renderCoachPage(): string {
   <title>코치 대시보드 | AI 활용 코칭 가이드</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    .gradient-bg {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -1143,9 +1496,7 @@ function renderCoachPage(): string {
             class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             placeholder="비밀번호를 입력하세요">
         </div>
-        <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition font-semibold">
-          로그인
-        </button>
+        <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition font-semibold">로그인</button>
       </form>
     </div>
   </div>
@@ -1159,32 +1510,50 @@ function renderCoachPage(): string {
           <h1 class="text-2xl font-bold"><i class="fas fa-user-tie mr-2"></i>코치 대시보드</h1>
           <p class="text-white/80">디마불사 코치님, 환영합니다!</p>
         </div>
-        <div class="flex gap-4">
+        <div class="flex gap-4 items-center">
+          <button onclick="openImportModal()" class="bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30 transition">
+            <i class="fas fa-upload mr-1"></i>CSV 업로드
+          </button>
+          <a href="/api/export/tasks" class="bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30 transition">
+            <i class="fas fa-download mr-1"></i>CSV 다운로드
+          </a>
           <a href="/" class="text-white/80 hover:text-white"><i class="fas fa-home mr-1"></i>홈</a>
           <button onclick="logout()" class="text-white/80 hover:text-white"><i class="fas fa-sign-out-alt mr-1"></i>로그아웃</button>
         </div>
       </div>
     </header>
 
-    <!-- 통계 카드 -->
     <div class="container mx-auto px-6 py-8">
-      <div class="grid md:grid-cols-4 gap-6 mb-8" id="stats-cards">
-        <!-- 동적 로드 -->
+      <!-- 통계 카드 -->
+      <div class="grid md:grid-cols-4 gap-6 mb-8" id="stats-cards"></div>
+
+      <!-- 차트 섹션 -->
+      <div class="grid md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+          <h3 class="text-lg font-bold text-gray-800 mb-4"><i class="fas fa-chart-pie text-purple-600 mr-2"></i>업무 유형별 분포</h3>
+          <canvas id="categoryChart" height="200"></canvas>
+        </div>
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+          <h3 class="text-lg font-bold text-gray-800 mb-4"><i class="fas fa-chart-bar text-blue-600 mr-2"></i>자동화 수준 분포</h3>
+          <canvas id="automationChart" height="200"></canvas>
+        </div>
       </div>
 
       <!-- 업무 목록 -->
       <div class="bg-white rounded-2xl shadow-lg p-6">
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
           <h2 class="text-xl font-bold text-gray-800"><i class="fas fa-list text-purple-600 mr-2"></i>수강생 업무 목록</h2>
-          <select id="status-filter" onchange="filterTasks()" class="px-4 py-2 border rounded-lg">
-            <option value="">전체</option>
-            <option value="analyzed">분석완료</option>
-            <option value="commented">코멘트완료</option>
-          </select>
+          <div class="flex gap-2 items-center">
+            <input type="text" id="search-input" onkeyup="searchTasks()" placeholder="이름/부서 검색..." 
+              class="px-4 py-2 border rounded-lg text-sm w-40">
+            <select id="status-filter" onchange="filterTasks()" class="px-4 py-2 border rounded-lg text-sm">
+              <option value="">전체</option>
+              <option value="analyzed">분석완료</option>
+              <option value="commented">코멘트완료</option>
+            </select>
+          </div>
         </div>
-        <div id="task-list" class="space-y-4">
-          <!-- 동적 로드 -->
-        </div>
+        <div id="task-list" class="space-y-4"></div>
       </div>
     </div>
   </div>
@@ -1198,48 +1567,67 @@ function renderCoachPage(): string {
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">종합 코멘트</label>
-            <textarea id="general_comment" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="수강생에게 전달할 종합 코멘트를 작성하세요"></textarea>
+            <textarea id="general_comment" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="수강생에게 전달할 종합 코멘트를 작성하세요"></textarea>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">추가 추천 도구</label>
-            <textarea id="additional_tools" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="AI 추천 외에 추가로 추천하고 싶은 도구"></textarea>
+            <textarea id="additional_tools" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="AI 추천 외에 추가로 추천하고 싶은 도구"></textarea>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">도구 활용 팁</label>
-            <textarea id="tips" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="도구 활용 시 유용한 팁"></textarea>
+            <textarea id="tips" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="도구 활용 시 유용한 팁"></textarea>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">학습 우선순위</label>
-            <textarea id="learning_priority" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="예: 1) ChatGPT 프롬프트 작성법 → 2) Make 자동화 구축"></textarea>
+            <textarea id="learning_priority" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="예: 1) ChatGPT 프롬프트 작성법 → 2) Make 자동화 구축"></textarea>
           </div>
         </div>
-        <div class="flex justify-end gap-4 mt-6">
-          <button type="button" onclick="closeCommentModal()" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
-          <button type="submit" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">저장</button>
+        <div class="flex justify-between gap-4 mt-6">
+          <button type="button" onclick="sendEmailNotification('comment')" class="px-4 py-2 border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50">
+            <i class="fas fa-envelope mr-1"></i>저장 후 이메일 알림
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeCommentModal()" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+            <button type="submit" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">저장</button>
+          </div>
         </div>
       </form>
     </div>
   </div>
 
+  <!-- CSV 업로드 모달 -->
+  <div id="import-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-8">
+    <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 my-8">
+      <h2 class="text-xl font-bold text-gray-800 mb-6"><i class="fas fa-upload text-purple-600 mr-2"></i>CSV 일괄 업로드</h2>
+      <div class="mb-6">
+        <p class="text-gray-600 text-sm mb-4">CSV 파일 형식: 구분/조직, 부서, 성명, 이메일, 하는일/직무, 반복주기, AI자동화요청사항</p>
+        <textarea id="csv-input" rows="8" class="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm"
+          placeholder="기획안 작성,마케팅팀,손오공,test@example.com,SNS 게시물 운영계획 수립,월 1회,전월 성과 모니터링 후 개선점 도출하여 운영 계획 자동화"></textarea>
+      </div>
+      <div id="import-result" class="hidden mb-4 p-4 rounded-lg"></div>
+      <div class="flex justify-end gap-4">
+        <button type="button" onclick="closeImportModal()" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
+        <button onclick="importCSV()" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+          <i class="fas fa-upload mr-1"></i>업로드
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let allTasks = [];
+    let categoryChart, automationChart;
     
     // 로그인
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const password = document.getElementById('password').value;
-      
       try {
         const response = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ password })
         });
-        
         const result = await response.json();
         if (result.success) {
           document.getElementById('login-modal').classList.add('hidden');
@@ -1253,20 +1641,25 @@ function renderCoachPage(): string {
       }
     });
     
-    function logout() {
-      location.reload();
-    }
+    function logout() { location.reload(); }
     
     // 대시보드 로드
     async function loadDashboard() {
       try {
-        const response = await fetch('/api/admin/tasks');
-        const result = await response.json();
+        const [tasksRes, statsRes] = await Promise.all([
+          fetch('/api/admin/tasks'),
+          fetch('/api/admin/stats')
+        ]);
+        const tasksResult = await tasksRes.json();
+        const statsResult = await statsRes.json();
         
-        if (result.success) {
-          allTasks = result.data;
-          renderStats();
+        if (tasksResult.success) {
+          allTasks = tasksResult.data;
           renderTasks(allTasks);
+        }
+        if (statsResult.success) {
+          renderStats(statsResult.data);
+          renderCharts(statsResult.data);
         }
       } catch (error) {
         console.error('Failed to load dashboard:', error);
@@ -1274,12 +1667,7 @@ function renderCoachPage(): string {
     }
     
     // 통계 렌더링
-    function renderStats() {
-      const total = allTasks.length;
-      const analyzed = allTasks.filter(t => t.status === 'analyzed').length;
-      const commented = allTasks.filter(t => t.status === 'commented').length;
-      const pending = allTasks.filter(t => t.coach_comment_status === 'none').length;
-      
+    function renderStats(stats) {
       document.getElementById('stats-cards').innerHTML = \`
         <div class="bg-white rounded-xl p-6 shadow-sm">
           <div class="flex items-center gap-4">
@@ -1288,7 +1676,7 @@ function renderCoachPage(): string {
             </div>
             <div>
               <p class="text-sm text-gray-500">전체 업무</p>
-              <p class="text-2xl font-bold text-gray-800">\${total}</p>
+              <p class="text-2xl font-bold text-gray-800">\${stats.total}</p>
             </div>
           </div>
         </div>
@@ -1299,7 +1687,7 @@ function renderCoachPage(): string {
             </div>
             <div>
               <p class="text-sm text-gray-500">분석완료</p>
-              <p class="text-2xl font-bold text-gray-800">\${analyzed}</p>
+              <p class="text-2xl font-bold text-gray-800">\${stats.analyzed}</p>
             </div>
           </div>
         </div>
@@ -1310,7 +1698,7 @@ function renderCoachPage(): string {
             </div>
             <div>
               <p class="text-sm text-gray-500">코멘트완료</p>
-              <p class="text-2xl font-bold text-gray-800">\${commented}</p>
+              <p class="text-2xl font-bold text-gray-800">\${stats.commented}</p>
             </div>
           </div>
         </div>
@@ -1321,11 +1709,44 @@ function renderCoachPage(): string {
             </div>
             <div>
               <p class="text-sm text-gray-500">대기중</p>
-              <p class="text-2xl font-bold text-gray-800">\${pending}</p>
+              <p class="text-2xl font-bold text-gray-800">\${stats.pending}</p>
             </div>
           </div>
         </div>
       \`;
+    }
+    
+    // 차트 렌더링
+    function renderCharts(stats) {
+      // 카테고리 차트
+      const catLabels = stats.categoryStats?.map(c => c.category) || [];
+      const catData = stats.categoryStats?.map(c => c.count) || [];
+      const catColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#84cc16', '#06b6d4'];
+      
+      if (categoryChart) categoryChart.destroy();
+      categoryChart = new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: {
+          labels: catLabels,
+          datasets: [{ data: catData, backgroundColor: catColors.slice(0, catLabels.length) }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'right' } } }
+      });
+      
+      // 자동화 수준 차트
+      const levelMap = { 'full': '완전자동화', 'semi': '반자동화', 'assist': 'AI보조' };
+      const autoLabels = stats.automationStats?.map(a => levelMap[a.level] || a.level) || [];
+      const autoData = stats.automationStats?.map(a => a.count) || [];
+      
+      if (automationChart) automationChart.destroy();
+      automationChart = new Chart(document.getElementById('automationChart'), {
+        type: 'bar',
+        data: {
+          labels: autoLabels,
+          datasets: [{ label: '업무 수', data: autoData, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'] }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
     }
     
     // 업무 목록 렌더링
@@ -1336,27 +1757,38 @@ function renderCoachPage(): string {
         'commented': '<span class="px-2 py-1 text-xs bg-green-100 text-green-600 rounded">코멘트완료</span>'
       };
       
+      if (tasks.length === 0) {
+        document.getElementById('task-list').innerHTML = '<p class="text-center text-gray-500 py-8">등록된 업무가 없습니다.</p>';
+        return;
+      }
+      
       document.getElementById('task-list').innerHTML = tasks.map(task => {
         const date = new Date(task.created_at);
         const dateStr = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
         
         return \`
           <div class="border rounded-xl p-5 hover:shadow-md transition">
-            <div class="flex justify-between items-start">
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-2">
+            <div class="flex justify-between items-start flex-wrap gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
                   <h3 class="font-bold text-gray-800">\${task.name}</h3>
                   <span class="text-sm text-gray-500">\${task.department}</span>
-                  \${statusBadge[task.status]}
+                  \${statusBadge[task.status] || ''}
+                  \${task.task_category ? '<span class="px-2 py-1 text-xs bg-purple-100 text-purple-600 rounded">' + task.task_category + '</span>' : ''}
                 </div>
-                <p class="text-gray-600 text-sm mb-2">\${task.job_description}</p>
+                <p class="text-gray-600 text-sm mb-2 truncate">\${task.job_description}</p>
                 <p class="text-gray-500 text-xs">\${dateStr} | \${task.email}</p>
               </div>
-              <div class="flex gap-2">
+              <div class="flex gap-2 flex-wrap">
                 <a href="/report/\${task.id}" target="_blank" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
                   <i class="fas fa-eye mr-1"></i>보기
                 </a>
-                \${task.coach_comment_status === 'none' ? '<button onclick="openCommentModal(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"><i class="fas fa-comment mr-1"></i>코멘트</button>' : '<span class="px-3 py-1 text-sm bg-green-100 text-green-600 rounded"><i class="fas fa-check mr-1"></i>작성완료</span>'}
+                <button onclick="sendReportEmail('\${task.id}')" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                  <i class="fas fa-envelope mr-1"></i>메일
+                </button>
+                \${task.coach_comment_status === 'none' 
+                  ? '<button onclick="openCommentModal(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"><i class="fas fa-comment mr-1"></i>코멘트</button>' 
+                  : '<button onclick="sendCommentEmail(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-green-100 text-green-600 rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>완료</button>'}
               </div>
             </div>
           </div>
@@ -1364,19 +1796,22 @@ function renderCoachPage(): string {
       }).join('');
     }
     
-    // 필터
+    // 필터 및 검색
     function filterTasks() {
       const status = document.getElementById('status-filter').value;
-      const filtered = status ? allTasks.filter(t => t.status === status) : allTasks;
+      const search = document.getElementById('search-input').value.toLowerCase();
+      let filtered = allTasks;
+      if (status) filtered = filtered.filter(t => t.status === status);
+      if (search) filtered = filtered.filter(t => t.name.toLowerCase().includes(search) || t.department.toLowerCase().includes(search));
       renderTasks(filtered);
     }
+    function searchTasks() { filterTasks(); }
     
     // 코멘트 모달
     function openCommentModal(taskId) {
       document.getElementById('comment-task-id').value = taskId;
       document.getElementById('comment-modal').classList.remove('hidden');
     }
-    
     function closeCommentModal() {
       document.getElementById('comment-modal').classList.add('hidden');
       document.getElementById('comment-form').reset();
@@ -1385,7 +1820,6 @@ function renderCoachPage(): string {
     // 코멘트 저장
     document.getElementById('comment-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      
       const data = {
         task_id: document.getElementById('comment-task-id').value,
         general_comment: document.getElementById('general_comment').value,
@@ -1393,14 +1827,12 @@ function renderCoachPage(): string {
         tips: document.getElementById('tips').value,
         learning_priority: document.getElementById('learning_priority').value
       };
-      
       try {
         const response = await fetch('/api/admin/comments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
-        
         const result = await response.json();
         if (result.success) {
           alert('코멘트가 저장되었습니다.');
@@ -1413,6 +1845,297 @@ function renderCoachPage(): string {
         alert('저장 실패: ' + error.message);
       }
     });
+    
+    // 이메일 발송 (Gmail Compose URL)
+    async function sendReportEmail(taskId) {
+      try {
+        const response = await fetch('/api/email/compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: taskId, type: 'report' })
+        });
+        const result = await response.json();
+        if (result.success) {
+          window.open(result.data.gmail_url, '_blank');
+        } else {
+          alert('이메일 생성 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    async function sendCommentEmail(taskId) {
+      try {
+        const response = await fetch('/api/email/compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: taskId, type: 'comment' })
+        });
+        const result = await response.json();
+        if (result.success) {
+          window.open(result.data.gmail_url, '_blank');
+        } else {
+          alert('이메일 생성 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    async function sendEmailNotification(type) {
+      const taskId = document.getElementById('comment-task-id').value;
+      // 먼저 저장
+      document.getElementById('comment-form').dispatchEvent(new Event('submit'));
+      // 약간의 딜레이 후 이메일
+      setTimeout(() => sendCommentEmail(taskId), 1000);
+    }
+    
+    // CSV 업로드 모달
+    function openImportModal() {
+      document.getElementById('import-modal').classList.remove('hidden');
+      document.getElementById('import-result').classList.add('hidden');
+    }
+    function closeImportModal() {
+      document.getElementById('import-modal').classList.add('hidden');
+      document.getElementById('csv-input').value = '';
+    }
+    
+    async function importCSV() {
+      const csvText = document.getElementById('csv-input').value.trim();
+      if (!csvText) {
+        alert('CSV 데이터를 입력하세요.');
+        return;
+      }
+      
+      const lines = csvText.split('\\n').filter(line => line.trim());
+      const tasks = lines.map(line => {
+        const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        return {
+          organization: cols[0] || '',
+          department: cols[1] || '',
+          name: cols[2] || '',
+          email: cols[3] || '',
+          job_description: cols[4] || '',
+          repeat_cycle: cols[5] || '',
+          automation_request: cols[6] || '',
+          estimated_hours: parseFloat(cols[7]) || 4
+        };
+      });
+      
+      try {
+        const response = await fetch('/api/import/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tasks })
+        });
+        const result = await response.json();
+        
+        const resultDiv = document.getElementById('import-result');
+        if (result.success) {
+          resultDiv.className = 'mb-4 p-4 rounded-lg bg-green-100 text-green-800';
+          resultDiv.innerHTML = \`
+            <p><strong>업로드 완료!</strong></p>
+            <p>전체: \${result.data.total}건 | 성공: \${result.data.success}건 | 실패: \${result.data.failed}건</p>
+          \`;
+          loadDashboard();
+        } else {
+          resultDiv.className = 'mb-4 p-4 rounded-lg bg-red-100 text-red-800';
+          resultDiv.innerHTML = '<p><strong>오류:</strong> ' + result.error + '</p>';
+        }
+        resultDiv.classList.remove('hidden');
+      } catch (error) {
+        alert('업로드 실패: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>`
+}
+
+function renderHistoryPage(): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>내 업무 이력 | AI 활용 코칭 가이드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- 헤더 -->
+  <header class="gradient-bg text-white py-8">
+    <div class="container mx-auto px-6">
+      <a href="/" class="text-white/80 hover:text-white mb-4 inline-block">
+        <i class="fas fa-arrow-left mr-2"></i>홈으로
+      </a>
+      <h1 class="text-3xl font-bold">
+        <i class="fas fa-history mr-2"></i>내 업무 이력 조회
+      </h1>
+      <p class="text-white/80 mt-2">이메일로 제출한 업무 이력과 분석 결과를 확인하세요</p>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-6 py-8">
+    <!-- 이메일 입력 섹션 -->
+    <div class="max-w-2xl mx-auto mb-8">
+      <div class="bg-white rounded-2xl shadow-lg p-8">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">
+          <i class="fas fa-search text-purple-600 mr-2"></i>이력 조회
+        </h2>
+        <form id="search-form" class="flex gap-4">
+          <input type="email" id="email-input" required
+            class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            placeholder="이메일을 입력하세요">
+          <button type="submit" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-semibold">
+            <i class="fas fa-search mr-2"></i>조회
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 결과 섹션 -->
+    <div id="result-section" class="hidden max-w-4xl mx-auto">
+      <!-- 통계 요약 -->
+      <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">
+          <i class="fas fa-chart-bar text-blue-600 mr-2"></i>나의 활동 요약
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="stats-summary"></div>
+      </div>
+
+      <!-- 업무 목록 -->
+      <div class="bg-white rounded-2xl shadow-lg p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">
+          <i class="fas fa-list text-purple-600 mr-2"></i>제출한 업무 목록
+        </h3>
+        <div id="task-list" class="space-y-4"></div>
+      </div>
+    </div>
+
+    <!-- 빈 상태 -->
+    <div id="empty-state" class="hidden max-w-2xl mx-auto">
+      <div class="bg-white rounded-2xl shadow-lg p-8 text-center">
+        <i class="fas fa-inbox text-gray-300 text-6xl mb-4"></i>
+        <h3 class="text-xl font-bold text-gray-600 mb-2">아직 제출한 업무가 없습니다</h3>
+        <p class="text-gray-500 mb-6">업무를 입력하고 AI 도구 추천을 받아보세요!</p>
+        <a href="/submit" class="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition">
+          <i class="fas fa-plus mr-2"></i>업무 입력하기
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const searchForm = document.getElementById('search-form');
+    const emailInput = document.getElementById('email-input');
+    const resultSection = document.getElementById('result-section');
+    const emptyState = document.getElementById('empty-state');
+    
+    // URL 파라미터에서 이메일 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailParam = urlParams.get('email');
+    if (emailParam) {
+      emailInput.value = emailParam;
+      searchHistory(emailParam);
+    }
+    
+    searchForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+      if (email) {
+        searchHistory(email);
+        // URL 업데이트
+        window.history.pushState({}, '', '/history?email=' + encodeURIComponent(email));
+      }
+    });
+    
+    async function searchHistory(email) {
+      try {
+        const response = await fetch('/api/history/' + encodeURIComponent(email));
+        const result = await response.json();
+        
+        if (result.success) {
+          if (result.data.tasks.length === 0) {
+            resultSection.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+          } else {
+            emptyState.classList.add('hidden');
+            resultSection.classList.remove('hidden');
+            renderStats(result.data.stats);
+            renderTasks(result.data.tasks);
+          }
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (error) {
+        alert('조회 실패: ' + error.message);
+      }
+    }
+    
+    function renderStats(stats) {
+      document.getElementById('stats-summary').innerHTML = \`
+        <div class="bg-purple-50 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-500 mb-1">총 업무</p>
+          <p class="text-2xl font-bold text-purple-600">\${stats.totalTasks}</p>
+        </div>
+        <div class="bg-green-50 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-500 mb-1">코멘트 완료</p>
+          <p class="text-2xl font-bold text-green-600">\${stats.commented}</p>
+        </div>
+        <div class="bg-blue-50 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-500 mb-1">예상 소요시간</p>
+          <p class="text-2xl font-bold text-blue-600">\${stats.totalEstimatedHours}h</p>
+        </div>
+        <div class="bg-orange-50 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-500 mb-1">절감 시간</p>
+          <p class="text-2xl font-bold text-orange-600">\${stats.totalSavedHours.toFixed(1)}h</p>
+        </div>
+      \`;
+    }
+    
+    function renderTasks(tasks) {
+      const statusBadge = {
+        'pending': '<span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">대기</span>',
+        'analyzed': '<span class="px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded">분석완료</span>',
+        'commented': '<span class="px-2 py-1 text-xs bg-green-100 text-green-600 rounded">코멘트완료</span>'
+      };
+      
+      document.getElementById('task-list').innerHTML = tasks.map(task => {
+        const date = new Date(task.created_at);
+        const dateStr = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+        
+        let recommendation = null;
+        try {
+          recommendation = task.recommended_tools ? JSON.parse(task.recommended_tools) : null;
+        } catch (e) {}
+        
+        return \`
+          <div class="border rounded-xl p-5 hover:shadow-md transition">
+            <div class="flex justify-between items-start flex-wrap gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                  \${statusBadge[task.status] || ''}
+                  \${task.task_category ? '<span class="px-2 py-1 text-xs bg-purple-100 text-purple-600 rounded">' + task.task_category + '</span>' : ''}
+                  <span class="text-sm text-gray-500">\${dateStr}</span>
+                </div>
+                <h3 class="font-bold text-gray-800 mb-2">\${task.job_description}</h3>
+                <p class="text-sm text-gray-600 mb-2">반복: \${task.repeat_cycle} | 소요시간: \${task.estimated_hours}시간</p>
+                \${recommendation ? '<p class="text-sm text-green-600"><i class="fas fa-chart-line mr-1"></i>예상 시간 절감: ' + recommendation.time_saving.percentage + '% (' + recommendation.time_saving.saved_hours + '시간)</p>' : ''}
+              </div>
+              <a href="/report/\${task.id}" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+                <i class="fas fa-file-alt mr-1"></i>보고서 보기
+              </a>
+            </div>
+            \${task.general_comment ? '<div class="mt-4 p-4 bg-purple-50 rounded-lg"><p class="text-sm text-purple-600 font-medium mb-1"><i class="fas fa-comment mr-1"></i>코치 코멘트</p><p class="text-sm text-gray-700">' + task.general_comment + '</p></div>' : ''}
+          </div>
+        \`;
+      }).join('');
+    }
   </script>
 </body>
 </html>`
