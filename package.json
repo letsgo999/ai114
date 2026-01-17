@@ -1,18 +1,27 @@
 {
-  "name": "webapp",
+  "name": "ai-coaching-guide",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:sandbox": "wrangler pages dev dist --local --ip 0.0.0.0 --port 3000 --persist-to .wrangler/state",
     "build": "vite build",
     "preview": "wrangler pages dev",
-    "deploy": "npm run build && wrangler pages deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "deploy:prod": "npm run build && wrangler pages deploy dist --project-name ai-coaching-guide",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:prod": "wrangler d1 migrations apply DB",
+    "db:seed:local": "wrangler d1 execute DB --local --file=./seed.sql",
+    "db:reset": "rm -rf .wrangler/state/v3/d1 && npm run db:migrate:local && npm run db:seed:local",
+    "db:console": "wrangler d1 execute DB --local"
   },
   "dependencies": {
     "hono": "^4.11.4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250117.0",
     "@hono/vite-build": "^1.2.0",
+    "@hono/vite-cloudflare-pages": "^0.4.2",
     "@hono/vite-dev-server": "^0.18.2",
     "vite": "^6.3.5",
     "wrangler": "^4.4.0"

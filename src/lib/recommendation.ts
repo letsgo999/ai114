@@ -1,0 +1,300 @@
+// =============================================
+// AI 도구 추천 엔진
+// 키워드 매칭 + 점수 산정 로직
+// =============================================
+
+export interface AITool {
+  id: string;
+  name: string;
+  category: string;
+  subcategory: string | null;
+  description: string;
+  website_url: string | null;
+  use_cases: string;
+  keywords: string;
+  automation_level: 'full' | 'semi' | 'assist';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  pricing_type: 'free' | 'freemium' | 'paid';
+  rating: number;
+  popularity: number;
+  is_active: number;
+}
+
+export interface RecommendedTool {
+  tool: AITool;
+  score: number;
+  matchedKeywords: string[];
+  reason: string;
+}
+
+export interface RecommendationResult {
+  category: string;
+  keywords: string[];
+  recommended_tools: RecommendedTool[];
+  automation_level: 'full' | 'semi' | 'assist';
+  time_saving: {
+    percentage: number;
+    saved_hours: number;
+    new_hours: number;
+  };
+}
+
+// 한국어 키워드 매핑 (업무 설명에서 AI 도구 키워드로 변환)
+const KEYWORD_MAPPINGS: Record<string, string[]> = {
+  // 문서 작성
+  '문서': ['문서', '작성', '보고서'],
+  '보고서': ['문서', '보고서', '작성'],
+  '기획안': ['문서', '기획안', '작성', '제안서'],
+  '제안서': ['문서', '제안서', '작성'],
+  '이메일': ['문서', '이메일', '작성'],
+  '회의록': ['회의록', '정리', '요약', '회의'],
+  '발표': ['프레젠테이션', 'PPT', '슬라이드', '발표'],
+  'PPT': ['프레젠테이션', 'PPT', '슬라이드'],
+  '프레젠테이션': ['프레젠테이션', 'PPT', '슬라이드'],
+  
+  // 데이터 분석
+  '분석': ['분석', '데이터', '통계'],
+  '데이터': ['데이터', '분석', '시각화'],
+  '통계': ['데이터', '통계', '분석'],
+  '차트': ['차트', '그래프', '시각화'],
+  '엑셀': ['데이터', '엑셀', '분석'],
+  '성과': ['분석', '데이터', '통계', '성과'],
+  '모니터링': ['분석', '모니터링', '데이터'],
+  
+  // 마케팅
+  'SNS': ['SNS', '마케팅', '게시물', '콘텐츠'],
+  '소셜미디어': ['SNS', '마케팅', '게시물'],
+  '게시물': ['SNS', '게시물', '콘텐츠'],
+  '콘텐츠': ['콘텐츠', '마케팅', 'SNS'],
+  '광고': ['광고', '마케팅', '카피'],
+  '인스타그램': ['SNS', '인스타그램', '마케팅'],
+  '페이스북': ['SNS', '페이스북', '마케팅'],
+  '디자인': ['디자인', '이미지', 'SNS'],
+  '이미지': ['이미지', '디자인', '생성'],
+  '배너': ['디자인', '배너', '이미지'],
+  '운영': ['운영', '관리', 'SNS', '콘텐츠'],
+  '계획': ['계획', '운영', '기획안'],
+  
+  // 자동화
+  '자동화': ['자동화', '워크플로우', '자동'],
+  '워크플로우': ['워크플로우', '자동화', '프로세스'],
+  '반복': ['자동화', '반복', '워크플로우'],
+  '프로세스': ['프로세스', '자동화', '워크플로우'],
+  '연동': ['연동', 'API', '자동화'],
+  '템플릿': ['템플릿', '자동화', '문서'],
+  
+  // 일정 관리
+  '일정': ['일정', '스케줄', '관리', '캘린더'],
+  '스케줄': ['스케줄', '일정', '관리'],
+  '회의': ['회의', '미팅', '스케줄'],
+  '시간': ['시간', '일정', '관리'],
+  '캘린더': ['캘린더', '일정', '스케줄'],
+  
+  // 회의/녹음
+  '녹음': ['녹음', '회의록', '전사'],
+  '전사': ['전사', '녹음', '회의록'],
+  '미팅': ['회의', '미팅', '녹음'],
+  
+  // 고객 서비스
+  '고객': ['고객', '서비스', 'CS'],
+  '서비스': ['서비스', '고객', 'CS'],
+  '문의': ['문의', '고객', '서비스'],
+  '응대': ['응대', '고객', '서비스'],
+  '챗봇': ['챗봇', '고객', '자동화'],
+  
+  // 개발
+  '코딩': ['코딩', '개발', '프로그래밍'],
+  '개발': ['개발', '코딩', '프로그래밍'],
+  '프로그래밍': ['프로그래밍', '코딩', '개발'],
+  '앱': ['앱', '개발', '노코드'],
+  
+  // 리서치
+  '검색': ['검색', '리서치', '조사'],
+  '리서치': ['리서치', '검색', '조사'],
+  '조사': ['조사', '리서치', '검색'],
+  '트렌드': ['트렌드', '분석', '리서치'],
+  
+  // 이미지/영상
+  '그림': ['이미지', '생성', '그림'],
+  '영상': ['영상', '비디오', '생성'],
+  '비디오': ['비디오', '영상', '생성'],
+  '편집': ['편집', '영상', '이미지']
+};
+
+// 업무 텍스트에서 키워드 추출
+export function extractKeywords(text: string): string[] {
+  const keywords: Set<string> = new Set();
+  const lowerText = text.toLowerCase();
+  
+  for (const [keyword, mappings] of Object.entries(KEYWORD_MAPPINGS)) {
+    if (lowerText.includes(keyword)) {
+      mappings.forEach(k => keywords.add(k));
+    }
+  }
+  
+  return Array.from(keywords);
+}
+
+// 도구 점수 계산
+export function calculateToolScore(tool: AITool, keywords: string[]): { score: number; matchedKeywords: string[] } {
+  let score = tool.rating * 5; // 기본 점수 (평점 기반)
+  const matchedKeywords: string[] = [];
+  
+  // 키워드 매칭 점수
+  const toolKeywords = JSON.parse(tool.keywords) as string[];
+  for (const keyword of keywords) {
+    if (toolKeywords.some(tk => tk.includes(keyword) || keyword.includes(tk))) {
+      score += 3;
+      matchedKeywords.push(keyword);
+    }
+  }
+  
+  // 난이도 보너스 (초보자용 도구 선호)
+  if (tool.difficulty === 'beginner') {
+    score += 3;
+  } else if (tool.difficulty === 'intermediate') {
+    score += 1;
+  }
+  
+  // 가격 보너스
+  if (tool.pricing_type === 'free') {
+    score += 2;
+  } else if (tool.pricing_type === 'freemium') {
+    score += 1;
+  }
+  
+  // 인기도 보너스
+  score += tool.popularity / 50;
+  
+  return { score, matchedKeywords };
+}
+
+// 업무 카테고리 추론
+export function inferCategory(keywords: string[]): string {
+  const categoryScores: Record<string, number> = {
+    '문서작성': 0,
+    '데이터분석': 0,
+    '마케팅': 0,
+    '업무자동화': 0,
+    '일정관리': 0,
+    '회의': 0,
+    '이미지생성': 0,
+    '영상생성': 0,
+    '고객서비스': 0,
+    '개발': 0,
+    '리서치': 0
+  };
+  
+  const categoryKeywords: Record<string, string[]> = {
+    '문서작성': ['문서', '작성', '보고서', '기획안', '제안서', '이메일', '회의록', '프레젠테이션', 'PPT', '슬라이드'],
+    '데이터분석': ['데이터', '분석', '통계', '차트', '그래프', '시각화', '엑셀', '성과'],
+    '마케팅': ['SNS', '마케팅', '게시물', '콘텐츠', '광고', '카피', '디자인', '배너', '운영'],
+    '업무자동화': ['자동화', '워크플로우', '자동', '반복', '프로세스', '연동', 'API', '템플릿'],
+    '일정관리': ['일정', '스케줄', '캘린더', '시간', '관리'],
+    '회의': ['회의', '미팅', '녹음', '전사', '회의록'],
+    '이미지생성': ['이미지', '생성', '그림', '아트', '일러스트'],
+    '영상생성': ['영상', '비디오', '편집', '효과'],
+    '고객서비스': ['고객', '서비스', 'CS', '문의', '응대', '챗봇'],
+    '개발': ['코딩', '개발', '프로그래밍', '코드', '앱', '노코드'],
+    '리서치': ['검색', '리서치', '조사', '트렌드', '정보']
+  };
+  
+  for (const keyword of keywords) {
+    for (const [category, catKeywords] of Object.entries(categoryKeywords)) {
+      if (catKeywords.includes(keyword)) {
+        categoryScores[category]++;
+      }
+    }
+  }
+  
+  const maxCategory = Object.entries(categoryScores).reduce((a, b) => a[1] > b[1] ? a : b);
+  return maxCategory[0];
+}
+
+// 자동화 수준 판단
+export function determineAutomationLevel(tools: RecommendedTool[]): 'full' | 'semi' | 'assist' {
+  const fullCount = tools.filter(t => t.tool.automation_level === 'full').length;
+  const semiCount = tools.filter(t => t.tool.automation_level === 'semi').length;
+  
+  if (fullCount >= 3) return 'full';
+  if (fullCount + semiCount >= 3) return 'semi';
+  return 'assist';
+}
+
+// 시간 절감 계산
+export function calculateTimeSaving(
+  estimatedHours: number,
+  automationLevel: 'full' | 'semi' | 'assist'
+): { percentage: number; saved_hours: number; new_hours: number } {
+  const savingsRate = {
+    'full': 0.8,
+    'semi': 0.6,
+    'assist': 0.3
+  };
+  
+  const rate = savingsRate[automationLevel];
+  const savedHours = Math.round(estimatedHours * rate * 10) / 10;
+  const newHours = Math.round((estimatedHours - savedHours) * 10) / 10;
+  
+  return {
+    percentage: Math.round(rate * 100),
+    saved_hours: savedHours,
+    new_hours: newHours
+  };
+}
+
+// 추천 이유 생성
+export function generateReason(tool: AITool, matchedKeywords: string[]): string {
+  const useCases = JSON.parse(tool.use_cases) as string[];
+  const mainUseCase = useCases[0] || tool.description;
+  
+  if (matchedKeywords.length > 0) {
+    return `"${matchedKeywords.slice(0, 2).join(', ')}" 키워드와 관련된 ${mainUseCase}에 최적화된 도구입니다.`;
+  }
+  
+  return `${mainUseCase}에 유용한 도구입니다.`;
+}
+
+// 메인 추천 함수
+export function recommendTools(
+  tools: AITool[],
+  jobDescription: string,
+  automationRequest: string,
+  estimatedHours: number = 4
+): RecommendationResult {
+  // 1. 키워드 추출
+  const combinedText = `${jobDescription} ${automationRequest}`;
+  const keywords = extractKeywords(combinedText);
+  
+  // 2. 카테고리 추론
+  const category = inferCategory(keywords);
+  
+  // 3. 각 도구별 점수 계산
+  const scoredTools: RecommendedTool[] = tools
+    .filter(tool => tool.is_active)
+    .map(tool => {
+      const { score, matchedKeywords } = calculateToolScore(tool, keywords);
+      return {
+        tool,
+        score,
+        matchedKeywords,
+        reason: generateReason(tool, matchedKeywords)
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5); // 상위 5개
+  
+  // 4. 자동화 수준 판단
+  const automationLevel = determineAutomationLevel(scoredTools);
+  
+  // 5. 시간 절감 계산
+  const timeSaving = calculateTimeSaving(estimatedHours, automationLevel);
+  
+  return {
+    category,
+    keywords,
+    recommended_tools: scoredTools,
+    automation_level: automationLevel,
+    time_saving: timeSaving
+  };
+}
