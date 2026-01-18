@@ -794,9 +794,14 @@ function renderMainPage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 활용 업무 자동화 코칭 가이드 | AI공부방</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
@@ -998,9 +1003,14 @@ function renderSubmitPage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>업무 입력 | AI 활용 코칭 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
@@ -1211,11 +1221,16 @@ function renderReportPage(taskId: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 활용 업무 자동화 진단 보고서</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
@@ -1535,10 +1550,15 @@ function renderCoachPage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>코치 대시보드 | AI 활용 코칭 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
   </style>
 </head>
@@ -2020,9 +2040,14 @@ function renderHistoryPage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>내 업무 이력 | AI 활용 코칭 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
   </style>
 </head>
@@ -2209,9 +2234,14 @@ function render404Page(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>페이지를 찾을 수 없습니다 | AI 활용 코칭 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
   </style>
 </head>
@@ -2243,8 +2273,15 @@ function renderErrorPage(errorMessage: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>오류 발생 | AI 활용 코칭 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
+  </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center">
   <div class="text-center px-6 max-w-md">
@@ -2270,9 +2307,14 @@ function renderToolsPage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 도구 목록 | AI 활용 코칭 가이드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
   <style>
+    * { font-family: 'Noto Sans KR', sans-serif !important; }
+    body { font-family: 'Noto Sans KR', sans-serif !important; font-weight: 500; }
     .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
   </style>
 </head>

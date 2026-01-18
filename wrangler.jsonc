@@ -4,14 +4,11 @@
   "compatibility_date": "2026-01-17",
   "pages_build_output_dir": "./dist",
   "compatibility_flags": ["nodejs_compat"],
-  
-  // D1 Database for local development
-  // Production database will be created during deployment
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "ai-coaching-db",
-      "database_id": "local-dev-db"
+      "database_id": "7881e363-a4d4-4b6c-8b40-7fb9a319d284"
     }
   ]
 }
