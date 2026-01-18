@@ -141,7 +141,8 @@ export function calculateToolScore(tool: AITool, keywords: string[]): { score: n
   const matchedKeywords: string[] = [];
   
   // 키워드 매칭 점수
-  const toolKeywords = JSON.parse(tool.keywords) as string[];
+  // keywords가 쉼표로 구분된 문자열이므로 split으로 처리
+  const toolKeywords = tool.keywords.split(',').map(k => k.trim());
   for (const keyword of keywords) {
     if (toolKeywords.some(tk => tk.includes(keyword) || keyword.includes(tk))) {
       score += 3;
@@ -245,7 +246,8 @@ export function calculateTimeSaving(
 
 // 추천 이유 생성
 export function generateReason(tool: AITool, matchedKeywords: string[]): string {
-  const useCases = JSON.parse(tool.use_cases) as string[];
+  // use_cases가 쉼표로 구분된 문자열이므로 split으로 처리
+  const useCases = tool.use_cases.split(',').map(u => u.trim());
   const mainUseCase = useCases[0] || tool.description;
   
   if (matchedKeywords.length > 0) {
