@@ -8,6 +8,7 @@ import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { Bindings, Task, AITool, Comment, CreateTaskRequest, TaskWithRecommendation } from './lib/types'
 import { recommendTools } from './lib/recommendation'
+import { generateAICoaching, generateFallbackCoaching, AICoachingResult } from './lib/gemini'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -185,7 +186,7 @@ app.get('/api/tools/categories', async (c) => {
   }
 })
 
-// POST /api/tasks - 업무 등록 및 AI 추천 생성
+// POST /api/tasks - 업무 등록 및 AI 추천 + AI 코칭 코멘트 생성
 app.post('/api/tasks', async (c) => {
   try {
     const body = await c.req.json<CreateTaskRequest>()
@@ -201,7 +202,7 @@ app.post('/api/tasks', async (c) => {
       'SELECT * FROM ai_tools WHERE is_active = 1'
     ).all<AITool>()
     
-    // AI 추천 생성
+    // AI 추천 생성 (키워드 매칭 기반)
     const recommendation = recommendTools(
       tools as AITool[],
       body.job_description,
@@ -209,8 +210,58 @@ app.post('/api/tasks', async (c) => {
       body.estimated_hours || 4
     )
     
+    // Gemini API를 통한 AI 코칭 코멘트 생성
+    let aiCoaching: AICoachingResult
+    const geminiApiKey = c.env.GEMINI_API_KEY
+    
+    if (geminiApiKey) {
+      try {
+        aiCoaching = await generateAICoaching(
+          geminiApiKey,
+          {
+            name: body.name,
+            organization: body.organization,
+            department: body.department,
+            job_description: body.job_description,
+            repeat_cycle: body.repeat_cycle,
+            automation_request: body.automation_request,
+            estimated_hours: body.estimated_hours || 4,
+            current_tools: body.current_tools || null
+          },
+          recommendation
+        )
+      } catch (aiError) {
+        console.error('Gemini API error, using fallback:', aiError)
+        // Gemini API 실패 시 폴백 코칭 사용
+        aiCoaching = generateFallbackCoaching(
+          {
+            name: body.name,
+            job_description: body.job_description,
+            estimated_hours: body.estimated_hours || 4
+          },
+          recommendation
+        )
+      }
+    } else {
+      // API 키가 없으면 폴백 코칭 사용
+      aiCoaching = generateFallbackCoaching(
+        {
+          name: body.name,
+          job_description: body.job_description,
+          estimated_hours: body.estimated_hours || 4
+        },
+        recommendation
+      )
+    }
+    
     const now = Date.now()
     const taskId = generateId()
+    
+    // 전체 결과 (추천 + AI 코칭)
+    const fullResult = {
+      ...recommendation,
+      ai_coaching: aiCoaching
+    }
     
     // 업무 저장
     await c.env.DB.prepare(`
@@ -231,7 +282,7 @@ app.post('/api/tasks', async (c) => {
       body.email,
       body.current_tools || null,
       body.estimated_hours || 4,
-      JSON.stringify(recommendation),
+      JSON.stringify(fullResult),
       recommendation.category,
       recommendation.automation_level,
       now,
@@ -242,7 +293,7 @@ app.post('/api/tasks', async (c) => {
       success: true, 
       data: {
         task_id: taskId,
-        recommendation
+        recommendation: fullResult
       }
     })
   } catch (error: any) {
@@ -1308,13 +1359,53 @@ function renderReportPage(taskId: string): string {
       </div>
     </div>
 
-    <!-- 코치 코멘트 -->
-    <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl shadow-lg p-8 mb-6" id="coach-comment-section">
+    <!-- AI 코칭 분석 요약 -->
+    <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl shadow-lg p-8 mb-6" id="ai-coaching-summary">
       <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-purple-200">
-        <i class="fas fa-user-tie text-purple-600 mr-2"></i>코치 코멘트
+        <i class="fas fa-robot text-purple-600 mr-2"></i>AI 코칭 분석
       </h2>
-      <div id="coach-comment">
-        <p class="text-gray-500 italic">아직 코치 코멘트가 작성되지 않았습니다. 곧 코멘트가 추가될 예정입니다.</p>
+      <div id="coaching-summary-content">
+        <p class="text-gray-500">분석 중...</p>
+      </div>
+    </div>
+
+    <!-- 단계별 워크플로우 -->
+    <div class="bg-white rounded-2xl shadow-lg p-8 mb-6" id="workflow-section">
+      <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200">
+        <i class="fas fa-tasks text-green-600 mr-2"></i>단계별 실행 워크플로우
+      </h2>
+      <div id="workflow-content" class="space-y-6">
+        <p class="text-gray-500">워크플로우 로딩 중...</p>
+      </div>
+    </div>
+
+    <!-- 시간 분석 -->
+    <div class="bg-white rounded-2xl shadow-lg p-8 mb-6" id="time-analysis-section">
+      <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200">
+        <i class="fas fa-clock text-blue-600 mr-2"></i>시간 절감 분석
+      </h2>
+      <div id="time-analysis-content" class="grid md:grid-cols-3 gap-6">
+        <p class="text-gray-500">분석 중...</p>
+      </div>
+    </div>
+
+    <!-- 학습 로드맵 -->
+    <div class="bg-white rounded-2xl shadow-lg p-8 mb-6" id="learning-roadmap-section">
+      <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200">
+        <i class="fas fa-graduation-cap text-orange-600 mr-2"></i>학습 로드맵
+      </h2>
+      <div id="learning-roadmap-content" class="space-y-4">
+        <p class="text-gray-500">로드맵 로딩 중...</p>
+      </div>
+    </div>
+
+    <!-- 코칭 팁 & 종합 의견 -->
+    <div class="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl shadow-lg p-8 mb-6" id="coaching-tips-section">
+      <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-green-200">
+        <i class="fas fa-lightbulb text-yellow-600 mr-2"></i>코칭 팁 & 종합 의견
+      </h2>
+      <div id="coaching-tips-content">
+        <p class="text-gray-500">로딩 중...</p>
       </div>
     </div>
 
@@ -1432,17 +1523,132 @@ function renderReportPage(taskId: string): string {
       
       document.getElementById('recommended-tools').innerHTML = toolsHTML;
       
-      // 코치 코멘트
-      if (data.comment) {
-        document.getElementById('coach-comment').innerHTML = \`
-          <div class="space-y-4">
-            \${data.comment.general_comment ? '<div class="bg-white p-4 rounded-lg"><p class="text-sm text-purple-600 font-medium mb-1"><i class="fas fa-comment mr-1"></i>종합 코멘트</p><p class="text-gray-700">' + data.comment.general_comment + '</p></div>' : ''}
-            \${data.comment.additional_tools ? '<div class="bg-white p-4 rounded-lg"><p class="text-sm text-purple-600 font-medium mb-1"><i class="fas fa-plus-circle mr-1"></i>추가 추천 도구</p><p class="text-gray-700">' + data.comment.additional_tools + '</p></div>' : ''}
-            \${data.comment.tips ? '<div class="bg-white p-4 rounded-lg"><p class="text-sm text-purple-600 font-medium mb-1"><i class="fas fa-lightbulb mr-1"></i>팁</p><p class="text-gray-700">' + data.comment.tips + '</p></div>' : ''}
-            \${data.comment.learning_priority ? '<div class="bg-white p-4 rounded-lg"><p class="text-sm text-purple-600 font-medium mb-1"><i class="fas fa-list-ol mr-1"></i>학습 우선순위</p><p class="text-gray-700">' + data.comment.learning_priority + '</p></div>' : ''}
+      // AI 코칭 결과 렌더링
+      const aiCoaching = recommendation.ai_coaching;
+      if (aiCoaching) {
+        // 코칭 요약
+        document.getElementById('coaching-summary-content').innerHTML = \`
+          <div class="bg-white p-6 rounded-xl">
+            <p class="text-lg text-gray-700 leading-relaxed">\${aiCoaching.summary}</p>
           </div>
-          <p class="text-right text-sm text-gray-500 mt-4">- 디마불사 코치</p>
         \`;
+        
+        // 단계별 워크플로우
+        if (aiCoaching.workflow && aiCoaching.workflow.length > 0) {
+          const workflowHTML = aiCoaching.workflow.map((step, idx) => \`
+            <div class="bg-gray-50 rounded-xl p-6 border-l-4 border-purple-500">
+              <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-purple-600 text-white rounded-full flex items-center justify-center flex-shrink-0 text-lg font-bold">
+                  \${step.step_number || idx + 1}
+                </div>
+                <div class="flex-1">
+                  <h3 class="text-lg font-bold text-gray-800 mb-2">\${step.title}</h3>
+                  <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <div class="flex items-center gap-2">
+                      <i class="fas fa-tools text-blue-500"></i>
+                      <span class="text-sm"><strong>도구:</strong> \${step.tool_name}</span>
+                      \${step.tool_url ? '<a href="' + step.tool_url + '" target="_blank" class="text-blue-500 hover:underline ml-2"><i class="fas fa-external-link-alt"></i></a>' : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <i class="fas fa-clock text-green-500"></i>
+                      <span class="text-sm"><strong>소요 시간:</strong> \${step.time_estimate}</span>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <p class="text-sm text-purple-600 font-medium mb-1"><i class="fas fa-cog mr-1"></i>사용 기능</p>
+                    <p class="text-gray-700">\${step.specific_feature}</p>
+                  </div>
+                  <div class="mb-3">
+                    <p class="text-sm text-blue-600 font-medium mb-1"><i class="fas fa-list-check mr-1"></i>실행 항목</p>
+                    <ul class="list-disc list-inside text-gray-700 space-y-1">
+                      \${step.action_items.map(item => '<li>' + item + '</li>').join('')}
+                    </ul>
+                  </div>
+                  <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-white p-3 rounded-lg">
+                      <p class="text-sm text-green-600 font-medium mb-1"><i class="fas fa-file-alt mr-1"></i>예상 결과물</p>
+                      <p class="text-gray-700 text-sm">\${step.expected_output}</p>
+                    </div>
+                    <div class="bg-yellow-50 p-3 rounded-lg">
+                      <p class="text-sm text-yellow-700 font-medium mb-1"><i class="fas fa-lightbulb mr-1"></i>팁</p>
+                      <p class="text-gray-700 text-sm">\${step.tips}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          \`).join('');
+          document.getElementById('workflow-content').innerHTML = workflowHTML;
+        }
+        
+        // 시간 분석
+        if (aiCoaching.time_analysis) {
+          document.getElementById('time-analysis-content').innerHTML = \`
+            <div class="bg-red-50 p-6 rounded-xl text-center">
+              <i class="fas fa-hourglass-start text-red-500 text-3xl mb-3"></i>
+              <p class="text-sm text-gray-500 mb-2">자동화 전</p>
+              <p class="text-lg font-bold text-red-600">\${aiCoaching.time_analysis.before}</p>
+            </div>
+            <div class="bg-green-50 p-6 rounded-xl text-center">
+              <i class="fas fa-hourglass-end text-green-500 text-3xl mb-3"></i>
+              <p class="text-sm text-gray-500 mb-2">자동화 후</p>
+              <p class="text-lg font-bold text-green-600">\${aiCoaching.time_analysis.after}</p>
+            </div>
+            <div class="bg-blue-50 p-6 rounded-xl text-center">
+              <i class="fas fa-chart-line text-blue-500 text-3xl mb-3"></i>
+              <p class="text-sm text-gray-500 mb-2">효율성 향상</p>
+              <p class="text-lg font-bold text-blue-600">\${aiCoaching.time_analysis.efficiency_gain}</p>
+            </div>
+          \`;
+        }
+        
+        // 학습 로드맵
+        if (aiCoaching.learning_roadmap && aiCoaching.learning_roadmap.length > 0) {
+          const roadmapHTML = aiCoaching.learning_roadmap.map(item => \`
+            <div class="bg-gray-50 rounded-xl p-5 flex items-start gap-4">
+              <div class="w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">
+                \${item.priority}
+              </div>
+              <div class="flex-1">
+                <h4 class="font-bold text-gray-800 mb-1">\${item.tool_name}</h4>
+                <p class="text-sm text-gray-600 mb-2">\${item.reason}</p>
+                <div class="flex flex-wrap gap-4 text-sm">
+                  <span class="text-blue-600"><i class="fas fa-book mr-1"></i>\${item.learning_resources}</span>
+                  <span class="text-green-600"><i class="fas fa-clock mr-1"></i>\${item.estimated_learning_time}</span>
+                </div>
+              </div>
+            </div>
+          \`).join('');
+          document.getElementById('learning-roadmap-content').innerHTML = roadmapHTML;
+        }
+        
+        // 코칭 팁 & 종합 의견
+        let tipsHTML = '';
+        if (aiCoaching.coaching_tips && aiCoaching.coaching_tips.length > 0) {
+          tipsHTML += '<div class="mb-6"><h3 class="text-lg font-bold text-gray-800 mb-3"><i class="fas fa-check-circle text-green-500 mr-2"></i>코칭 팁</h3><ul class="space-y-2">';
+          aiCoaching.coaching_tips.forEach(tip => {
+            tipsHTML += '<li class="flex items-start gap-2 bg-white p-3 rounded-lg"><i class="fas fa-lightbulb text-yellow-500 mt-1"></i><span class="text-gray-700">' + tip + '</span></li>';
+          });
+          tipsHTML += '</ul></div>';
+        }
+        
+        if (aiCoaching.conclusion) {
+          tipsHTML += \`
+            <div class="bg-white p-6 rounded-xl border-2 border-purple-200">
+              <h3 class="text-lg font-bold text-purple-700 mb-3"><i class="fas fa-medal mr-2"></i>종합 코멘트</h3>
+              <p class="text-gray-700 leading-relaxed">\${aiCoaching.conclusion}</p>
+              <p class="text-right text-sm text-purple-500 mt-4 font-medium">- 디마불사 코치 (AI 어시스턴트)</p>
+            </div>
+          \`;
+        }
+        document.getElementById('coaching-tips-content').innerHTML = tipsHTML || '<p class="text-gray-500">코칭 팁이 없습니다.</p>';
+      } else {
+        // AI 코칭이 없는 경우 섹션 숨기기
+        document.getElementById('ai-coaching-summary').style.display = 'none';
+        document.getElementById('workflow-section').style.display = 'none';
+        document.getElementById('time-analysis-section').style.display = 'none';
+        document.getElementById('learning-roadmap-section').style.display = 'none';
+        document.getElementById('coaching-tips-section').style.display = 'none';
       }
     }
     
