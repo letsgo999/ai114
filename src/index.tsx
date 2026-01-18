@@ -2307,8 +2307,8 @@ function renderCoachPage(): string {
                 \${task.coach_comment_status === 'none' 
                   ? '<button onclick="openCommentModal(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"><i class="fas fa-comment mr-1"></i>코멘트</button>' 
                   : '<button onclick="sendCommentEmail(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-green-100 text-green-600 rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>완료</button>'}
-                <button onclick="deleteTask('\${task.id}', '\${task.name}')" class="px-2 py-1 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="휴지통으로 이동">
-                  <i class="fas fa-trash-alt"></i>
+                <button onclick="deleteTask('\${task.id}', '\${task.name}')" class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200">
+                  <i class="fas fa-trash-alt mr-1"></i>삭제
                 </button>
               </div>
             </div>
