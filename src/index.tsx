@@ -1161,7 +1161,7 @@ function renderSubmitPage(): string {
                 <label class="block text-sm font-medium text-gray-700 mb-2">
                   예상 소요시간 (시간)
                 </label>
-                <input type="number" name="estimated_hours" min="0.5" max="40" step="0.5" value="4"
+                <input type="number" name="estimated_hours" min="0.5" max="40" step="0.5" value="1"
                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="예: 4">
               </div>
@@ -1227,7 +1227,7 @@ function renderSubmitPage(): string {
         repeat_cycle: formData.get('repeat_cycle'),
         automation_request: formData.get('automation_request'),
         current_tools: formData.get('current_tools') || '',
-        estimated_hours: parseFloat(formData.get('estimated_hours')) || 4
+        estimated_hours: parseFloat(formData.get('estimated_hours')) || 1
       };
       
       // 유효성 검사
@@ -2310,7 +2310,7 @@ function renderCoachPage(): string {
           job_description: cols[4] || '',
           repeat_cycle: cols[5] || '',
           automation_request: cols[6] || '',
-          estimated_hours: parseFloat(cols[7]) || 4
+          estimated_hours: parseFloat(cols[7]) || 1
         };
       });
       
