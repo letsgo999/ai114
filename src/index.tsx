@@ -1548,6 +1548,21 @@ function renderReportPage(taskId: string): string {
     <div class="bg-white rounded-2xl shadow-lg p-8 mb-6">
       <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-200">
         <i class="fas fa-tools text-blue-600 mr-2"></i>추천 AI 도구 TOP 5
+        <span class="relative inline-block ml-2 group cursor-help">
+          <i class="fas fa-info-circle text-gray-400 text-sm hover:text-purple-600 transition"></i>
+          <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-72 z-50">
+            <div class="font-bold mb-2 text-purple-300">추천 점수 안내</div>
+            <ul class="space-y-1 text-gray-200">
+              <li>• <strong>100점 만점</strong> 기준으로 산정</li>
+              <li>• 업무 키워드 일치도 (40%)</li>
+              <li>• 도구 평점 및 인기도 (30%)</li>
+              <li>• 사용 난이도/접근성 (20%)</li>
+              <li>• 가격 접근성 (10%)</li>
+            </ul>
+            <div class="mt-2 pt-2 border-t border-gray-600 text-gray-300">점수가 높을수록 업무에 적합합니다.</div>
+            <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-8 border-transparent border-t-gray-800"></div>
+          </div>
+        </span>
       </h2>
       <div id="recommended-tools" class="space-y-4">
         <!-- 동적 로드 -->
@@ -1708,8 +1723,9 @@ function renderReportPage(taskId: string): string {
                 \${item.tool.website_url ? '<a href="' + item.tool.website_url + '" target="_blank" class="text-sm text-blue-500 hover:underline mt-2 inline-block"><i class="fas fa-external-link-alt mr-1"></i>사이트 방문</a>' : ''}
               </div>
               <div class="text-right">
-                <p class="text-sm text-gray-500">점수</p>
-                <p class="text-xl font-bold text-purple-600">\${Math.round(item.score)}</p>
+                <p class="text-sm text-gray-500">추천점수</p>
+                <p class="text-xl font-bold text-purple-600">\${Math.min(100, Math.round(item.score * 2))}점</p>
+                <p class="text-xs text-gray-400">(100점 만점)</p>
               </div>
             </div>
           </div>
