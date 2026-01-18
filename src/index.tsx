@@ -378,16 +378,16 @@ app.get('/api/tasks/:id', async (c) => {
   }
 })
 
-// GET /api/tasks - 업무 목록 조회 (이메일 필터)
+// GET /api/tasks - 업무 목록 조회 (이메일 필터, 삭제된 항목 제외)
 app.get('/api/tasks', async (c) => {
   try {
     const email = c.req.query('email')
     
-    let query = 'SELECT * FROM tasks'
+    let query = 'SELECT * FROM tasks WHERE deleted_at IS NULL'
     const params: string[] = []
     
     if (email) {
-      query += ' WHERE email = ?'
+      query += ' AND email = ?'
       params.push(email)
     }
     
@@ -421,16 +421,16 @@ app.post('/api/admin/login', async (c) => {
   return c.json({ success: false, error: '비밀번호가 일치하지 않습니다.' }, 401)
 })
 
-// GET /api/admin/tasks - 모든 업무 조회 (코치용)
+// GET /api/admin/tasks - 모든 업무 조회 (코치용, 삭제된 항목 제외)
 app.get('/api/admin/tasks', async (c) => {
   try {
     const status = c.req.query('status')
     
-    let query = 'SELECT * FROM tasks'
+    let query = 'SELECT * FROM tasks WHERE deleted_at IS NULL'
     const params: string[] = []
     
     if (status) {
-      query += ' WHERE status = ?'
+      query += ' AND status = ?'
       params.push(status)
     }
     
@@ -494,48 +494,50 @@ app.post('/api/admin/comments', async (c) => {
 // Phase 2: 추가 API 엔드포인트
 // =============================================
 
-// GET /api/admin/stats - 통계 데이터
+// GET /api/admin/stats - 통계 데이터 (삭제된 항목 제외)
 app.get('/api/admin/stats', async (c) => {
   try {
-    // 전체 통계
-    const totalResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tasks').first<{count: number}>();
-    const analyzedResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'analyzed'").first<{count: number}>();
-    const commentedResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'commented'").first<{count: number}>();
+    // 전체 통계 (삭제된 항목 제외)
+    const totalResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tasks WHERE deleted_at IS NULL').first<{count: number}>();
+    const analyzedResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'analyzed' AND deleted_at IS NULL").first<{count: number}>();
+    const commentedResult = await c.env.DB.prepare("SELECT COUNT(*) as count FROM tasks WHERE status = 'commented' AND deleted_at IS NULL").first<{count: number}>();
+    const trashResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM tasks WHERE deleted_at IS NOT NULL').first<{count: number}>();
     
-    // 카테고리별 통계
+    // 카테고리별 통계 (삭제된 항목 제외)
     const { results: categoryStats } = await c.env.DB.prepare(`
       SELECT task_category as category, COUNT(*) as count 
       FROM tasks 
-      WHERE task_category IS NOT NULL 
+      WHERE task_category IS NOT NULL AND deleted_at IS NULL
       GROUP BY task_category 
       ORDER BY count DESC
     `).all();
     
-    // 자동화 수준별 통계
+    // 자동화 수준별 통계 (삭제된 항목 제외)
     const { results: automationStats } = await c.env.DB.prepare(`
       SELECT automation_level as level, COUNT(*) as count 
       FROM tasks 
-      WHERE automation_level IS NOT NULL 
+      WHERE automation_level IS NOT NULL AND deleted_at IS NULL
       GROUP BY automation_level
     `).all();
     
-    // 부서별 통계
+    // 부서별 통계 (삭제된 항목 제외)
     const { results: departmentStats } = await c.env.DB.prepare(`
       SELECT department, COUNT(*) as count 
       FROM tasks 
+      WHERE deleted_at IS NULL
       GROUP BY department 
       ORDER BY count DESC 
       LIMIT 10
     `).all();
     
-    // 최근 7일간 등록 추이
+    // 최근 7일간 등록 추이 (삭제된 항목 제외)
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
     const { results: dailyStats } = await c.env.DB.prepare(`
       SELECT 
         DATE(created_at / 1000, 'unixepoch') as date,
         COUNT(*) as count 
       FROM tasks 
-      WHERE created_at >= ? 
+      WHERE created_at >= ? AND deleted_at IS NULL
       GROUP BY date 
       ORDER BY date
     `).bind(sevenDaysAgo).all();
@@ -547,6 +549,7 @@ app.get('/api/admin/stats', async (c) => {
         analyzed: analyzedResult?.count || 0,
         commented: commentedResult?.count || 0,
         pending: (totalResult?.count || 0) - (commentedResult?.count || 0),
+        trash: trashResult?.count || 0,
         categoryStats,
         automationStats,
         departmentStats,
@@ -559,7 +562,7 @@ app.get('/api/admin/stats', async (c) => {
   }
 });
 
-// GET /api/export/tasks - CSV 내보내기
+// GET /api/export/tasks - CSV 내보내기 (삭제된 항목 제외)
 app.get('/api/export/tasks', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(`
@@ -572,6 +575,7 @@ app.get('/api/export/tasks', async (c) => {
         c.general_comment, c.additional_tools, c.tips, c.learning_priority
       FROM tasks t
       LEFT JOIN comments c ON t.id = c.task_id AND c.status = 'published'
+      WHERE t.deleted_at IS NULL
       ORDER BY t.created_at DESC
     `).all();
     
@@ -696,7 +700,7 @@ app.post('/api/import/tasks', async (c) => {
   }
 });
 
-// GET /api/history/:email - 수강생별 이력 조회
+// GET /api/history/:email - 수강생별 이력 조회 (삭제된 항목 제외)
 app.get('/api/history/:email', async (c) => {
   try {
     const email = c.req.param('email');
@@ -707,7 +711,7 @@ app.get('/api/history/:email', async (c) => {
         c.general_comment, c.additional_tools, c.tips, c.learning_priority
       FROM tasks t
       LEFT JOIN comments c ON t.id = c.task_id AND c.status = 'published'
-      WHERE t.email = ?
+      WHERE t.email = ? AND t.deleted_at IS NULL
       ORDER BY t.created_at DESC
     `).bind(email).all();
     
@@ -831,6 +835,151 @@ AI 도구 활용에 대해 궁금한 점이 있으시면 편하게 질문해주�
     });
   } catch (error: any) {
     return c.json({ success: false, error: error?.message || 'Failed to compose email' }, 500);
+  }
+});
+
+// =============================================
+// 휴지통 API (소프트 삭제, 복원, 영구 삭제)
+// =============================================
+
+// DELETE /api/tasks/:id - 소프트 삭제 (휴지통으로 이동)
+app.delete('/api/tasks/:id', async (c) => {
+  try {
+    const taskId = c.req.param('id');
+    const now = Date.now();
+    
+    // 업무가 존재하는지 확인
+    const task = await c.env.DB.prepare(
+      'SELECT id FROM tasks WHERE id = ? AND deleted_at IS NULL'
+    ).bind(taskId).first();
+    
+    if (!task) {
+      return c.json({ success: false, error: '업무를 찾을 수 없습니다.' }, 404);
+    }
+    
+    // deleted_at 설정 (소프트 삭제)
+    await c.env.DB.prepare(
+      'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?'
+    ).bind(now, now, taskId).run();
+    
+    return c.json({ success: true, message: '휴지통으로 이동되었습니다.' });
+  } catch (error: any) {
+    console.error('Delete error:', error);
+    return c.json({ success: false, error: error?.message || 'Failed to delete task' }, 500);
+  }
+});
+
+// POST /api/tasks/:id/restore - 휴지통에서 복원
+app.post('/api/tasks/:id/restore', async (c) => {
+  try {
+    const taskId = c.req.param('id');
+    const now = Date.now();
+    
+    // 삭제된 업무인지 확인
+    const task = await c.env.DB.prepare(
+      'SELECT id FROM tasks WHERE id = ? AND deleted_at IS NOT NULL'
+    ).bind(taskId).first();
+    
+    if (!task) {
+      return c.json({ success: false, error: '휴지통에서 해당 업무를 찾을 수 없습니다.' }, 404);
+    }
+    
+    // deleted_at NULL로 설정 (복원)
+    await c.env.DB.prepare(
+      'UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?'
+    ).bind(now, taskId).run();
+    
+    return c.json({ success: true, message: '업무가 복원되었습니다.' });
+  } catch (error: any) {
+    console.error('Restore error:', error);
+    return c.json({ success: false, error: error?.message || 'Failed to restore task' }, 500);
+  }
+});
+
+// DELETE /api/tasks/:id/permanent - 영구 삭제
+app.delete('/api/tasks/:id/permanent', async (c) => {
+  try {
+    const taskId = c.req.param('id');
+    
+    // 삭제된 업무인지 확인 (휴지통에 있는 것만 영구 삭제 가능)
+    const task = await c.env.DB.prepare(
+      'SELECT id FROM tasks WHERE id = ? AND deleted_at IS NOT NULL'
+    ).bind(taskId).first();
+    
+    if (!task) {
+      return c.json({ success: false, error: '휴지통에서 해당 업무를 찾을 수 없습니다.' }, 404);
+    }
+    
+    // 연관된 코멘트 먼저 삭제
+    await c.env.DB.prepare('DELETE FROM comments WHERE task_id = ?').bind(taskId).run();
+    
+    // 업무 영구 삭제
+    await c.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(taskId).run();
+    
+    return c.json({ success: true, message: '영구 삭제되었습니다.' });
+  } catch (error: any) {
+    console.error('Permanent delete error:', error);
+    return c.json({ success: false, error: error?.message || 'Failed to permanently delete task' }, 500);
+  }
+});
+
+// GET /api/admin/trash - 휴지통 목록 조회
+app.get('/api/admin/trash', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(`
+      SELECT *, 
+        CAST((? - deleted_at) / (1000 * 60 * 60 * 24) AS INTEGER) as days_in_trash
+      FROM tasks 
+      WHERE deleted_at IS NOT NULL 
+      ORDER BY deleted_at DESC
+    `).bind(Date.now()).all<Task & { days_in_trash: number }>();
+    
+    return c.json({ 
+      success: true, 
+      data: results,
+      info: {
+        total: results.length,
+        message: '30일이 지나면 자동으로 영구 삭제됩니다.'
+      }
+    });
+  } catch (error: any) {
+    console.error('Trash list error:', error);
+    return c.json({ success: false, error: error?.message || 'Failed to fetch trash' }, 500);
+  }
+});
+
+// POST /api/admin/trash/cleanup - 30일 지난 항목 영구 삭제 (수동/자동 실행)
+app.post('/api/admin/trash/cleanup', async (c) => {
+  try {
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    
+    // 30일 지난 항목 조회
+    const { results: expiredTasks } = await c.env.DB.prepare(`
+      SELECT id FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?
+    `).bind(thirtyDaysAgo).all<{ id: string }>();
+    
+    if (expiredTasks.length === 0) {
+      return c.json({ success: true, message: '삭제할 항목이 없습니다.', deleted_count: 0 });
+    }
+    
+    // 연관된 코멘트 삭제
+    for (const task of expiredTasks) {
+      await c.env.DB.prepare('DELETE FROM comments WHERE task_id = ?').bind(task.id).run();
+    }
+    
+    // 업무 영구 삭제
+    const deleteResult = await c.env.DB.prepare(`
+      DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?
+    `).bind(thirtyDaysAgo).run();
+    
+    return c.json({ 
+      success: true, 
+      message: `${expiredTasks.length}개 항목이 영구 삭제되었습니다.`,
+      deleted_count: expiredTasks.length
+    });
+  } catch (error: any) {
+    console.error('Cleanup error:', error);
+    return c.json({ success: false, error: error?.message || 'Cleanup failed' }, 500);
   }
 });
 
@@ -1857,7 +2006,7 @@ function renderCoachPage(): string {
 
     <div class="container mx-auto px-6 py-8">
       <!-- 통계 카드 -->
-      <div class="grid md:grid-cols-4 gap-6 mb-8" id="stats-cards"></div>
+      <div class="grid md:grid-cols-5 gap-4 mb-8" id="stats-cards"></div>
 
       <!-- 차트 섹션 -->
       <div class="grid md:grid-cols-2 gap-6 mb-8">
@@ -2071,6 +2220,17 @@ function renderCoachPage(): string {
             </div>
           </div>
         </div>
+        <div class="bg-white rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-md transition" onclick="showTrash()">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <i class="fas fa-trash-alt text-red-600 text-xl"></i>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">휴지통</p>
+              <p class="text-2xl font-bold text-gray-800">\${stats.trash || 0}</p>
+            </div>
+          </div>
+        </div>
       \`;
     }
     
@@ -2137,7 +2297,7 @@ function renderCoachPage(): string {
                 <p class="text-gray-600 text-sm mb-2 truncate">\${task.job_description}</p>
                 <p class="text-gray-500 text-xs">\${dateStr} | \${task.email}</p>
               </div>
-              <div class="flex gap-2 flex-wrap">
+              <div class="flex gap-2 flex-wrap items-center">
                 <a href="/report/\${task.id}" target="_blank" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
                   <i class="fas fa-eye mr-1"></i>보기
                 </a>
@@ -2147,6 +2307,9 @@ function renderCoachPage(): string {
                 \${task.coach_comment_status === 'none' 
                   ? '<button onclick="openCommentModal(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"><i class="fas fa-comment mr-1"></i>코멘트</button>' 
                   : '<button onclick="sendCommentEmail(\\'' + task.id + '\\')" class="px-3 py-1 text-sm bg-green-100 text-green-600 rounded hover:bg-green-200"><i class="fas fa-check mr-1"></i>완료</button>'}
+                <button onclick="deleteTask('\${task.id}', '\${task.name}')" class="px-2 py-1 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded" title="휴지통으로 이동">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -2384,6 +2547,212 @@ function renderCoachPage(): string {
       } catch (error) {
         alert('업로드 실패: ' + error.message);
       }
+    }
+    
+    // =============================================
+    // 휴지통 관련 함수
+    // =============================================
+    
+    let trashTasks = [];
+    let isTrashView = false;
+    
+    // 휴지통으로 이동 (소프트 삭제)
+    async function deleteTask(taskId, taskName) {
+      if (!confirm(\`"\${taskName}" 님의 업무를 휴지통으로 이동하시겠습니까?\\n\\n* 휴지통에서 30일 후 영구 삭제됩니다.\\n* 복원 가능합니다.\`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(\`/api/tasks/\${taskId}\`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert('휴지통으로 이동되었습니다.');
+          loadDashboard();
+        } else {
+          alert('삭제 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    // 휴지통 보기
+    async function showTrash() {
+      try {
+        const response = await fetch('/api/admin/trash');
+        const result = await response.json();
+        
+        if (result.success) {
+          trashTasks = result.data;
+          isTrashView = true;
+          
+          // UI 변경
+          document.querySelector('#task-list').parentElement.querySelector('h2').innerHTML = 
+            '<i class="fas fa-trash-alt text-red-600 mr-2"></i>휴지통 <span class="text-sm font-normal text-gray-500">(' + trashTasks.length + '개 항목, 30일 후 자동 삭제)</span>';
+          
+          // 버튼 영역 변경
+          const filterArea = document.querySelector('#task-list').parentElement.querySelector('.flex.gap-2.items-center');
+          filterArea.innerHTML = \`
+            <button onclick="cleanupTrash()" class="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 text-sm">
+              <i class="fas fa-broom mr-1"></i>30일 지난 항목 정리
+            </button>
+            <button onclick="backToTasks()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+              <i class="fas fa-arrow-left mr-1"></i>업무 목록으로
+            </button>
+          \`;
+          
+          renderTrashTasks(trashTasks);
+        } else {
+          alert('휴지통 로드 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    // 휴지통 항목 렌더링
+    function renderTrashTasks(tasks) {
+      if (tasks.length === 0) {
+        document.getElementById('task-list').innerHTML = '<p class="text-center text-gray-500 py-8"><i class="fas fa-check-circle text-green-500 mr-2"></i>휴지통이 비어 있습니다.</p>';
+        return;
+      }
+      
+      document.getElementById('task-list').innerHTML = tasks.map(task => {
+        const deletedDate = new Date(task.deleted_at);
+        const deletedDateStr = deletedDate.getFullYear() + '-' + String(deletedDate.getMonth() + 1).padStart(2, '0') + '-' + String(deletedDate.getDate()).padStart(2, '0');
+        const daysRemaining = 30 - (task.days_in_trash || 0);
+        
+        return \`
+          <div class="border border-red-200 rounded-xl p-5 bg-red-50/30 hover:shadow-md transition">
+            <div class="flex justify-between items-start flex-wrap gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                  <h3 class="font-bold text-gray-800">\${task.name}</h3>
+                  <span class="text-sm text-gray-500">\${task.department}</span>
+                  <span class="px-2 py-1 text-xs bg-red-100 text-red-600 rounded">삭제됨</span>
+                </div>
+                <p class="text-gray-600 text-sm mb-2 truncate">\${task.job_description}</p>
+                <p class="text-gray-500 text-xs">삭제일: \${deletedDateStr} | <span class="text-red-500">\${daysRemaining > 0 ? daysRemaining + '일 후 영구 삭제' : '영구 삭제 대상'}</span></p>
+              </div>
+              <div class="flex gap-2 flex-wrap items-center">
+                <button onclick="restoreTask('\${task.id}', '\${task.name}')" class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200">
+                  <i class="fas fa-undo mr-1"></i>복원
+                </button>
+                <button onclick="permanentDeleteTask('\${task.id}', '\${task.name}')" class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+                  <i class="fas fa-trash mr-1"></i>영구 삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        \`;
+      }).join('');
+    }
+    
+    // 복원
+    async function restoreTask(taskId, taskName) {
+      if (!confirm(\`"\${taskName}" 님의 업무를 복원하시겠습니까?\`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(\`/api/tasks/\${taskId}/restore\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert('복원되었습니다.');
+          showTrash(); // 휴지통 다시 로드
+          // 통계 갱신
+          const statsRes = await fetch('/api/admin/stats');
+          const statsResult = await statsRes.json();
+          if (statsResult.success) renderStats(statsResult.data);
+        } else {
+          alert('복원 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    // 영구 삭제
+    async function permanentDeleteTask(taskId, taskName) {
+      if (!confirm(\`"\${taskName}" 님의 업무를 영구 삭제하시겠습니까?\\n\\n⚠️ 이 작업은 되돌릴 수 없습니다!\`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(\`/api/tasks/\${taskId}/permanent\`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert('영구 삭제되었습니다.');
+          showTrash(); // 휴지통 다시 로드
+          // 통계 갱신
+          const statsRes = await fetch('/api/admin/stats');
+          const statsResult = await statsRes.json();
+          if (statsResult.success) renderStats(statsResult.data);
+        } else {
+          alert('삭제 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    // 30일 지난 항목 정리
+    async function cleanupTrash() {
+      if (!confirm('30일이 지난 모든 항목을 영구 삭제하시겠습니까?\\n\\n⚠️ 이 작업은 되돌릴 수 없습니다!')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/admin/trash/cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert(result.message);
+          showTrash();
+          // 통계 갱신
+          const statsRes = await fetch('/api/admin/stats');
+          const statsResult = await statsRes.json();
+          if (statsResult.success) renderStats(statsResult.data);
+        } else {
+          alert('정리 실패: ' + result.error);
+        }
+      } catch (error) {
+        alert('오류 발생: ' + error.message);
+      }
+    }
+    
+    // 업무 목록으로 돌아가기
+    function backToTasks() {
+      isTrashView = false;
+      
+      // UI 복원
+      document.querySelector('#task-list').parentElement.querySelector('h2').innerHTML = 
+        '<i class="fas fa-list text-purple-600 mr-2"></i>수강생 업무 목록';
+      
+      // 필터 영역 복원
+      const filterArea = document.querySelector('#task-list').parentElement.querySelector('.flex.gap-2.items-center');
+      filterArea.innerHTML = \`
+        <input type="text" id="search-input" onkeyup="searchTasks()" placeholder="이름/부서 검색..." 
+          class="px-4 py-2 border rounded-lg text-sm w-40">
+        <select id="status-filter" onchange="filterTasks()" class="px-4 py-2 border rounded-lg text-sm">
+          <option value="">전체</option>
+          <option value="analyzed">분석완료</option>
+          <option value="commented">코멘트완료</option>
+        </select>
+      \`;
+      
+      loadDashboard();
     }
   </script>
 </body>
