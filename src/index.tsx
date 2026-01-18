@@ -1846,32 +1846,58 @@ function renderCoachPage(): string {
 
   <!-- 코멘트 모달 -->
   <div id="comment-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto py-8">
-    <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 my-8">
-      <h2 class="text-xl font-bold text-gray-800 mb-6"><i class="fas fa-comment text-purple-600 mr-2"></i>코치 코멘트 작성</h2>
+    <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
+      <h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-comment text-purple-600 mr-2"></i>코치 코멘트 작성</h2>
+      <p class="text-sm text-gray-500 mb-4"><i class="fas fa-info-circle mr-1"></i>입력창 클릭 또는 엔터 시 AI 분석 내용이 자동 입력됩니다.</p>
       <form id="comment-form">
         <input type="hidden" id="comment-task-id">
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">종합 코멘트</label>
-            <textarea id="general_comment" rows="3" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="수강생에게 전달할 종합 코멘트를 작성하세요"></textarea>
+            <textarea id="general_comment" rows="4" 
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 placeholder-gray-400" 
+              data-ai-field="conclusion"
+              onfocus="fillFromPlaceholder(this)"
+              onkeydown="if(event.key==='Enter' && !this.value) { fillFromPlaceholder(this); }"
+              placeholder="수강생에게 전달할 종합 코멘트를 작성하세요"></textarea>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">추가 추천 도구</label>
-            <textarea id="additional_tools" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="AI 추천 외에 추가로 추천하고 싶은 도구"></textarea>
+            <textarea id="additional_tools" rows="2" 
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 placeholder-gray-400" 
+              data-ai-field="tools"
+              onfocus="fillFromPlaceholder(this)"
+              onkeydown="if(event.key==='Enter' && !this.value) { fillFromPlaceholder(this); }"
+              placeholder="AI 추천 외에 추가로 추천하고 싶은 도구"></textarea>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">도구 활용 팁</label>
-            <textarea id="tips" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="도구 활용 시 유용한 팁"></textarea>
+            <textarea id="tips" rows="3" 
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 placeholder-gray-400" 
+              data-ai-field="tips"
+              onfocus="fillFromPlaceholder(this)"
+              onkeydown="if(event.key==='Enter' && !this.value) { fillFromPlaceholder(this); }"
+              placeholder="도구 활용 시 유용한 팁"></textarea>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">학습 우선순위</label>
-            <textarea id="learning_priority" rows="2" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="예: 1) ChatGPT 프롬프트 작성법 → 2) Make 자동화 구축"></textarea>
+            <textarea id="learning_priority" rows="3" 
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 placeholder-gray-400" 
+              data-ai-field="roadmap"
+              onfocus="fillFromPlaceholder(this)"
+              onkeydown="if(event.key==='Enter' && !this.value) { fillFromPlaceholder(this); }"
+              placeholder="예: 1) ChatGPT 프롬프트 작성법 → 2) Make 자동화 구축"></textarea>
           </div>
         </div>
         <div class="flex justify-between gap-4 mt-6">
-          <button type="button" onclick="sendEmailNotification('comment')" class="px-4 py-2 border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50">
-            <i class="fas fa-envelope mr-1"></i>저장 후 이메일 알림
-          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="fillAllFromAI()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+              <i class="fas fa-magic mr-1"></i>AI 내용 전체 입력
+            </button>
+            <button type="button" onclick="sendEmailNotification('comment')" class="px-4 py-2 border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50">
+              <i class="fas fa-envelope mr-1"></i>저장 후 이메일
+            </button>
+          </div>
           <div class="flex gap-2">
             <button type="button" onclick="closeCommentModal()" class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">취소</button>
             <button type="submit" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">저장</button>
@@ -2093,14 +2119,93 @@ function renderCoachPage(): string {
     }
     function searchTasks() { filterTasks(); }
     
-    // 코멘트 모달
-    function openCommentModal(taskId) {
+    // 코멘트 모달 - AI 분석 내용을 placeholder로 미리 표시
+    let currentTaskAIData = null; // 현재 태스크의 AI 코칭 데이터 저장
+    
+    async function openCommentModal(taskId) {
       document.getElementById('comment-task-id').value = taskId;
       document.getElementById('comment-modal').classList.remove('hidden');
+      
+      // 폼 초기화
+      document.getElementById('comment-form').reset();
+      currentTaskAIData = null;
+      
+      // 해당 태스크의 AI 분석 데이터 가져오기
+      const task = allTasks.find(t => t.id === taskId);
+      if (task && task.recommended_tools) {
+        try {
+          const recommendation = typeof task.recommended_tools === 'string' 
+            ? JSON.parse(task.recommended_tools) 
+            : task.recommended_tools;
+          
+          const aiCoaching = recommendation.ai_coaching;
+          if (aiCoaching) {
+            currentTaskAIData = aiCoaching;
+            
+            // 종합 코멘트 placeholder
+            const conclusionText = aiCoaching.conclusion || aiCoaching.summary || '';
+            if (conclusionText) {
+              document.getElementById('general_comment').placeholder = conclusionText;
+            }
+            
+            // 추가 추천 도구 placeholder - 추천 도구 리스트에서 추출
+            const toolsText = recommendation.recommended_tools
+              ? recommendation.recommended_tools.map((t, i) => (i+1) + '. ' + t.tool.name + ' - ' + t.tool.description).join('\\n')
+              : '';
+            if (toolsText) {
+              document.getElementById('additional_tools').placeholder = toolsText;
+            }
+            
+            // 도구 활용 팁 placeholder
+            const tipsText = aiCoaching.coaching_tips 
+              ? aiCoaching.coaching_tips.map((tip, i) => '• ' + tip).join('\\n')
+              : '';
+            if (tipsText) {
+              document.getElementById('tips').placeholder = tipsText;
+            }
+            
+            // 학습 우선순위 placeholder
+            const roadmapText = aiCoaching.learning_roadmap
+              ? aiCoaching.learning_roadmap.map(item => item.priority + ') ' + item.tool_name + ' - ' + item.reason).join('\\n')
+              : '';
+            if (roadmapText) {
+              document.getElementById('learning_priority').placeholder = roadmapText;
+            }
+          }
+        } catch (e) {
+          console.error('AI 데이터 파싱 오류:', e);
+        }
+      }
     }
+    
+    // placeholder 내용을 입력값으로 자동 채우기
+    function fillFromPlaceholder(element) {
+      if (!element.value && element.placeholder && element.placeholder !== element.getAttribute('data-default-placeholder')) {
+        element.value = element.placeholder;
+      }
+    }
+    
+    // 모든 필드에 AI 내용 자동 입력
+    function fillAllFromAI() {
+      const fields = ['general_comment', 'additional_tools', 'tips', 'learning_priority'];
+      fields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element && !element.value && element.placeholder) {
+          element.value = element.placeholder;
+        }
+      });
+    }
+    
     function closeCommentModal() {
       document.getElementById('comment-modal').classList.add('hidden');
       document.getElementById('comment-form').reset();
+      currentTaskAIData = null;
+      
+      // placeholder 초기화
+      document.getElementById('general_comment').placeholder = '수강생에게 전달할 종합 코멘트를 작성하세요';
+      document.getElementById('additional_tools').placeholder = 'AI 추천 외에 추가로 추천하고 싶은 도구';
+      document.getElementById('tips').placeholder = '도구 활용 시 유용한 팁';
+      document.getElementById('learning_priority').placeholder = '예: 1) ChatGPT 프롬프트 작성법 → 2) Make 자동화 구축';
     }
     
     // 코멘트 저장
