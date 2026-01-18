@@ -767,6 +767,22 @@ app.get('/history', (c) => {
   return c.html(renderHistoryPage())
 })
 
+// AI 도구 목록 페이지
+app.get('/tools', (c) => {
+  return c.html(renderToolsPage())
+})
+
+// 404 페이지
+app.notFound((c) => {
+  return c.html(render404Page(), 404)
+})
+
+// 에러 핸들러
+app.onError((err, c) => {
+  console.error('Server error:', err)
+  return c.html(renderErrorPage(err.message), 500)
+})
+
 // =============================================
 // HTML 템플릿 렌더링 함수
 // =============================================
@@ -913,6 +929,9 @@ function renderMainPage(): string {
         </a>
         <a href="/history" class="inline-block bg-white/20 text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-white/30 transition shadow-lg border border-white/30">
           <i class="fas fa-history mr-2"></i>내 이력 조회
+        </a>
+        <a href="/tools" class="inline-block bg-white/20 text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-white/30 transition shadow-lg border border-white/30">
+          <i class="fas fa-toolbox mr-2"></i>AI 도구 보기
         </a>
       </div>
     </div>
@@ -1217,12 +1236,15 @@ function renderReportPage(taskId: string): string {
   </div>
 
   <!-- 액션 버튼 (상단 고정) -->
-  <div class="no-print fixed top-4 right-4 z-40 flex gap-2">
+  <div class="no-print fixed top-4 right-4 z-40 flex gap-2 flex-wrap justify-end">
     <button onclick="downloadPDF()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition shadow-lg">
-      <i class="fas fa-file-pdf mr-2"></i>PDF 다운로드
+      <i class="fas fa-file-pdf mr-2"></i>PDF
+    </button>
+    <button onclick="shareReport()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow-lg">
+      <i class="fas fa-share-alt mr-2"></i>공유
     </button>
     <a href="/" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition shadow-lg inline-block">
-      <i class="fas fa-home mr-2"></i>홈으로
+      <i class="fas fa-home mr-2"></i>홈
     </a>
   </div>
 
@@ -1459,6 +1481,44 @@ function renderReportPage(taskId: string): string {
       } finally {
         document.getElementById('pdf-loading').remove();
       }
+    }
+    
+    // 공유 기능
+    async function shareReport() {
+      const url = window.location.href;
+      const title = 'AI 활용 업무 자동화 진단 보고서 - ' + (taskData?.name || '');
+      
+      // Web Share API 지원 확인
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: title,
+            text: taskData?.name + '님의 AI 활용 업무 자동화 진단 보고서입니다.',
+            url: url
+          });
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            copyToClipboard(url);
+          }
+        }
+      } else {
+        copyToClipboard(url);
+      }
+    }
+    
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        alert('보고서 링크가 클립보드에 복사되었습니다!\\n\\n' + text);
+      }).catch(() => {
+        // 폴백: 임시 텍스트 영역 사용
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('보고서 링크가 클립보드에 복사되었습니다!\\n\\n' + text);
+      });
     }
     
     // 초기화
@@ -2136,6 +2196,213 @@ function renderHistoryPage(): string {
         \`;
       }).join('');
     }
+  </script>
+</body>
+</html>`
+}
+
+// 404 페이지
+function render404Page(): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>페이지를 찾을 수 없습니다 | AI 활용 코칭 가이드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+  <div class="text-center px-6">
+    <div class="mb-8">
+      <i class="fas fa-search text-gray-300 text-8xl"></i>
+    </div>
+    <h1 class="text-6xl font-bold text-gray-800 mb-4">404</h1>
+    <p class="text-xl text-gray-600 mb-8">요청하신 페이지를 찾을 수 없습니다</p>
+    <div class="flex justify-center gap-4 flex-wrap">
+      <a href="/" class="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition">
+        <i class="fas fa-home mr-2"></i>홈으로 가기
+      </a>
+      <a href="/submit" class="inline-block bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition">
+        <i class="fas fa-edit mr-2"></i>업무 입력하기
+      </a>
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+// 에러 페이지
+function renderErrorPage(errorMessage: string): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오류 발생 | AI 활용 코칭 가이드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+  <div class="text-center px-6 max-w-md">
+    <div class="mb-8">
+      <i class="fas fa-exclamation-triangle text-red-400 text-8xl"></i>
+    </div>
+    <h1 class="text-4xl font-bold text-gray-800 mb-4">오류가 발생했습니다</h1>
+    <p class="text-gray-600 mb-4">죄송합니다. 요청을 처리하는 중 문제가 발생했습니다.</p>
+    <p class="text-sm text-gray-500 bg-gray-100 p-3 rounded mb-8">${errorMessage}</p>
+    <a href="/" class="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition">
+      <i class="fas fa-home mr-2"></i>홈으로 가기
+    </a>
+  </div>
+</body>
+</html>`
+}
+
+// AI 도구 목록 페이지
+function renderToolsPage(): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 도구 목록 | AI 활용 코칭 가이드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- 헤더 -->
+  <header class="gradient-bg text-white py-8">
+    <div class="container mx-auto px-6">
+      <a href="/" class="text-white/80 hover:text-white mb-4 inline-block">
+        <i class="fas fa-arrow-left mr-2"></i>홈으로
+      </a>
+      <h1 class="text-3xl font-bold">
+        <i class="fas fa-toolbox mr-2"></i>AI 도구 목록
+      </h1>
+      <p class="text-white/80 mt-2">업무 자동화에 활용할 수 있는 최신 AI 도구들입니다 (22개)</p>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-6 py-8">
+    <!-- 카테고리 필터 -->
+    <div class="mb-6 flex flex-wrap gap-2" id="category-filters">
+      <button onclick="filterTools('')" class="category-btn active px-4 py-2 rounded-full bg-purple-600 text-white text-sm">전체</button>
+    </div>
+
+    <!-- 검색 -->
+    <div class="mb-6">
+      <input type="text" id="search-input" onkeyup="searchTools()" placeholder="도구명 또는 키워드 검색..."
+        class="w-full max-w-md px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+    </div>
+
+    <!-- 도구 목록 -->
+    <div id="tools-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- 동적 로드 -->
+    </div>
+  </main>
+
+  <script>
+    let allTools = [];
+    let currentCategory = '';
+    
+    const categoryIcons = {
+      '문서작성': 'fa-file-alt',
+      '데이터분석': 'fa-chart-bar',
+      '마케팅': 'fa-bullhorn',
+      '업무자동화': 'fa-cogs',
+      '일정관리': 'fa-calendar-alt',
+      '회의': 'fa-users',
+      '이미지생성': 'fa-image',
+      '영상생성': 'fa-video',
+      '고객서비스': 'fa-headset',
+      '개발': 'fa-code',
+      '리서치': 'fa-search'
+    };
+    
+    const difficultyText = { 'beginner': '초급', 'intermediate': '중급', 'advanced': '고급' };
+    const pricingText = { 'free': '무료', 'freemium': '부분무료', 'paid': '유료' };
+    const pricingColor = { 'free': 'green', 'freemium': 'blue', 'paid': 'orange' };
+    
+    async function loadTools() {
+      try {
+        const response = await fetch('/api/tools');
+        const result = await response.json();
+        if (result.success) {
+          allTools = result.data;
+          renderTools(allTools);
+          renderCategoryFilters();
+        }
+      } catch (error) {
+        console.error('Failed to load tools:', error);
+      }
+    }
+    
+    function renderCategoryFilters() {
+      const categories = [...new Set(allTools.map(t => t.category))];
+      const container = document.getElementById('category-filters');
+      container.innerHTML = '<button onclick="filterTools(\\'\\')" class="category-btn ' + (currentCategory === '' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700') + ' px-4 py-2 rounded-full text-sm hover:bg-purple-500 hover:text-white transition">전체</button>';
+      categories.forEach(cat => {
+        container.innerHTML += '<button onclick="filterTools(\\'' + cat + '\\')" class="category-btn ' + (currentCategory === cat ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700') + ' px-4 py-2 rounded-full text-sm hover:bg-purple-500 hover:text-white transition"><i class="fas ' + (categoryIcons[cat] || 'fa-tools') + ' mr-1"></i>' + cat + '</button>';
+      });
+    }
+    
+    function filterTools(category) {
+      currentCategory = category;
+      renderCategoryFilters();
+      const filtered = category ? allTools.filter(t => t.category === category) : allTools;
+      renderTools(filtered);
+    }
+    
+    function searchTools() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      let filtered = currentCategory ? allTools.filter(t => t.category === currentCategory) : allTools;
+      if (query) {
+        filtered = filtered.filter(t => 
+          t.name.toLowerCase().includes(query) || 
+          t.description.toLowerCase().includes(query) ||
+          t.keywords.toLowerCase().includes(query)
+        );
+      }
+      renderTools(filtered);
+    }
+    
+    function renderTools(tools) {
+      document.getElementById('tools-grid').innerHTML = tools.map(tool => \`
+        <div class="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <i class="fas \${categoryIcons[tool.category] || 'fa-tools'} text-purple-600"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-2">
+                <h3 class="font-bold text-gray-800">\${tool.name}</h3>
+                <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">\${tool.category}</span>
+              </div>
+              <p class="text-sm text-gray-600 mb-3">\${tool.description}</p>
+              <div class="flex items-center gap-2 flex-wrap text-xs">
+                <span class="px-2 py-1 bg-\${pricingColor[tool.pricing_type]}-100 text-\${pricingColor[tool.pricing_type]}-600 rounded">\${pricingText[tool.pricing_type]}</span>
+                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded">\${difficultyText[tool.difficulty]}</span>
+                <span class="text-yellow-500"><i class="fas fa-star"></i> \${tool.rating}</span>
+              </div>
+              \${tool.website_url ? '<a href="' + tool.website_url + '" target="_blank" class="mt-3 inline-block text-sm text-purple-600 hover:underline"><i class="fas fa-external-link-alt mr-1"></i>사이트 방문</a>' : ''}
+            </div>
+          </div>
+        </div>
+      \`).join('');
+      
+      if (tools.length === 0) {
+        document.getElementById('tools-grid').innerHTML = '<div class="col-span-full text-center py-12 text-gray-500"><i class="fas fa-search text-4xl mb-4"></i><p>검색 결과가 없습니다.</p></div>';
+      }
+    }
+    
+    loadTools();
   </script>
 </body>
 </html>`
