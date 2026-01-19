@@ -1,64 +1,25 @@
-# AI 코칭 웹앱 개발 종합 지침서
-
-## End-to-End 설계 및 운영 매뉴얼 v3.0
-
-> **문서 목적**: 이 문서는 AI 코칭 가이드 웹앱 개발 과정에서 축적된 모든 교훈, 해결책, 표준을 정리한 **참조용 매뉴얼 템플릿**입니다.
-> 차후 유사한 기능의 웹페이지 개발 시 **사전에 정의하고 미리 제공해야 할 내용**을 포함합니다.
-
----
+# AI 코칭 웹앱 개발 종합 지침서 v2.0
 
 ## 📋 목차
 
-### Part 1: 프로젝트 개요
 1. [프로젝트 개요](#1-프로젝트-개요)
-2. [현재 프로젝트 컨텍스트](#2-현재-프로젝트-컨텍스트)
-
-### Part 2: 교훈 및 예방책
-3. [실제 발생한 문제와 해결책 (교훈 모음)](#3-실제-발생한-문제와-해결책-교훈-모음)
-
-### Part 3: 사전 준비 (Pre-Launch)
-4. [개발 전 필수 확인 체크리스트](#4-개발-전-필수-확인-체크리스트)
-5. [프로젝트 범위 정의 (Project Scoping)](#5-프로젝트-범위-정의-project-scoping)
-6. [위험 식별 및 완화 전략](#6-위험-식별-및-완화-전략)
-
-### Part 4: 아키텍처 및 설계
-7. [기술 스택 및 아키텍처 결정](#7-기술-스택-및-아키텍처-결정)
-8. [데이터베이스 설계 완전 가이드](#8-데이터베이스-설계-완전-가이드)
-9. [API 계약 (API Contracts)](#9-api-계약-api-contracts)
-10. [보안 및 역할 기반 접근 제어 (RBAC)](#10-보안-및-역할-기반-접근-제어-rbac)
-
-### Part 5: UI/UX 및 AI 연동
-11. [UI/UX 설계 표준](#11-uiux-설계-표준)
-12. [AI 엔진 연동 (Gemini 2.5 Flash)](#12-ai-엔진-연동-gemini-25-flash)
-13. [점수/평점 시스템 설계](#13-점수평점-시스템-설계)
-
-### Part 6: 개발 워크플로우
-14. [단계별 개발 프로세스 (Step-by-Step)](#14-단계별-개발-프로세스-step-by-step)
-15. [CI/CD 파이프라인](#15-cicd-파이프라인)
-
-### Part 7: 배포 및 운영
-16. [배포 절차](#16-배포-절차)
-17. [모니터링 및 로깅](#17-모니터링-및-로깅)
-
-### Part 8: QA 및 테스트
-18. [QA 및 회귀 테스트](#18-qa-및-회귀-테스트)
-19. [인수 기준 (Acceptance Criteria)](#19-인수-기준-acceptance-criteria)
-
-### Part 9: 문서화 및 참조
-20. [트러블슈팅 가이드](#20-트러블슈팅-가이드)
-21. [유지보수 가이드](#21-유지보수-가이드)
-22. [코드 스니펫 라이브러리](#22-코드-스니펫-라이브러리)
-
-### Part 10: 부록
-- [부록 A: 최종 점검 체크리스트 (Start-to-Launch Readiness)](#부록-a-최종-점검-체크리스트-start-to-launch-readiness)
-- [부록 B: API 스펙 템플릿 (Skeleton)](#부록-b-api-스펙-템플릿-skeleton)
-- [부록 C: 테스트 매트릭스 템플릿](#부록-c-테스트-매트릭스-템플릿)
-- [부록 D: 용어집 (Glossary)](#부록-d-용어집-glossary)
-- [부록 E: 프로젝트 URL 및 참조 정보](#부록-e-프로젝트-url-및-참조-정보)
+2. [실제 발생한 문제와 해결책 (교훈 모음)](#2-실제-발생한-문제와-해결책-교훈-모음)
+3. [개발 전 필수 확인 체크리스트](#3-개발-전-필수-확인-체크리스트)
+4. [기술 스택 및 아키텍처](#4-기술-스택-및-아키텍처)
+5. [데이터베이스 설계 완전 가이드](#5-데이터베이스-설계-완전-가이드)
+6. [API 설계 완전 명세](#6-api-설계-완전-명세)
+7. [UI/UX 설계 표준](#7-uiux-설계-표준)
+8. [AI 연동 (Gemini API)](#8-ai-연동-gemini-api)
+9. [점수/평점 시스템 설계](#9-점수평점-시스템-설계)
+10. [단계별 개발 프로세스](#10-단계별-개발-프로세스)
+11. [배포 프로세스](#11-배포-프로세스)
+12. [테스트 체크리스트](#12-테스트-체크리스트)
+13. [트러블슈팅 가이드](#13-트러블슈팅-가이드)
+14. [유지보수 가이드](#14-유지보수-가이드)
+15. [코드 스니펫 라이브러리](#15-코드-스니펫-라이브러리)
+16. [최종 점검 체크리스트](#16-최종-점검-체크리스트)
 
 ---
-
-# Part 1: 프로젝트 개요
 
 ## 1. 프로젝트 개요
 
@@ -67,80 +28,43 @@
 - 관리자(코치) 대시보드를 통한 수강생 관리 및 코멘트 작성
 - 실시간 통계 및 분석 결과 시각화
 
-### 1.2 최종 구현 기능 목록 (Phase 1 + Phase 2)
+### 1.2 최종 구현 기능 목록
 
-| 구분 | 기능 | 상세 설명 | 구현 상태 | 우선순위 |
-|------|------|----------|----------|----------|
-| **수강생** | 업무 입력 폼 | 조직, 부서, 이름, 이메일, 업무 설명, 반복주기, 자동화 요청 | ✅ 완료 | 필수 |
-| **수강생** | AI 분석 보고서 | 추천 도구 TOP 5, 워크플로우, 시간 절감 분석, 학습 로드맵 | ✅ 완료 | 필수 |
-| **수강생** | 점수 표시 | 100점 만점 기준 + 인포 아이콘 툴팁 설명 | ✅ 완료 | 필수 |
-| **수강생** | PDF 다운로드 | 보고서 PDF 저장 기능 | ✅ 완료 | 선택 |
-| **수강생** | 이력 조회 | 이메일 기반 과거 분석 이력 확인 | ✅ 완료 | 선택 |
-| **관리자** | 로그인 | 비밀번호 기반 인증 | ✅ 완료 | 필수 |
-| **관리자** | 대시보드 | 통계 카드, 차트, 업무 목록 | ✅ 완료 | 필수 |
-| **관리자** | 코멘트 작성 | AI 분석 기반 코칭 코멘트 작성 | ✅ 완료 | 필수 |
-| **관리자** | 휴지통 관리 | 소프트 삭제, 복원, 30일 후 영구 삭제 | ✅ 완료 | 필수 |
-| **관리자** | CSV 관리 | 내보내기/가져오기 | ✅ 완료 | 선택 |
-| **시스템** | Gmail 연동 | 보고서/코멘트 이메일 발송 링크 생성 | ✅ 완료 | 선택 |
-| **Phase 2** | 이메일 알림 | Gmail Compose URL 기반 알림 | ⏳ 계획 | 선택 |
-| **Phase 2** | CSV Import/Export | 대량 데이터 관리 | ⏳ 계획 | 선택 |
-| **Phase 2** | 통계 대시보드 | Chart.js 기반 시각화 | ⏳ 계획 | 선택 |
+| 구분 | 기능 | 상세 설명 | 우선순위 |
+|------|------|----------|----------|
+| **수강생** | 업무 입력 폼 | 조직, 부서, 이름, 이메일, 업무 설명, 반복주기, 자동화 요청 | 필수 |
+| **수강생** | AI 분석 보고서 | 추천 도구 TOP 5, 워크플로우, 시간 절감 분석, 학습 로드맵 | 필수 |
+| **수강생** | 점수 표시 | 100점 만점 기준 + 인포 아이콘 툴팁 설명 | 필수 |
+| **수강생** | PDF 다운로드 | 보고서 PDF 저장 기능 | 선택 |
+| **수강생** | 이력 조회 | 이메일 기반 과거 분석 이력 확인 | 선택 |
+| **관리자** | 로그인 | 비밀번호 기반 인증 | 필수 |
+| **관리자** | 대시보드 | 통계 카드, 차트, 업무 목록 | 필수 |
+| **관리자** | 코멘트 작성 | AI 분석 기반 코칭 코멘트 작성 | 필수 |
+| **관리자** | 휴지통 관리 | 소프트 삭제, 복원, 30일 후 영구 삭제 | 필수 |
+| **관리자** | CSV 관리 | 내보내기/가져오기 | 선택 |
+| **시스템** | Gmail 연동 | 보고서/코멘트 이메일 발송 링크 생성 | 선택 |
 
 ### 1.3 사용자 역할 정의
 
-| 역할 | 접근 권한 | 인증 방식 | 사용 페이지 |
-|------|----------|----------|------------|
-| 수강생 | 업무 입력, 보고서 조회, 이력 확인 | 없음 (이메일로 식별) | `/`, `/submit`, `/report/:id`, `/history` |
-| 코치(관리자) | 전체 관리, 코멘트, 통계, 휴지통 | 비밀번호 인증 | `/coach` |
+| 역할 | 접근 권한 | 인증 방식 |
+|------|----------|----------|
+| 수강생 | 업무 입력, 보고서 조회, 이력 확인 | 없음 (이메일로 식별) |
+| 코치(관리자) | 전체 관리, 코멘트, 통계, 휴지통 | 비밀번호 인증 |
 
 ---
 
-## 2. 현재 프로젝트 컨텍스트
-
-### 2.1 프로덕션 도메인 및 URL
-
-| 항목 | URL | 상태 |
-|------|-----|------|
-| **프로덕션 도메인** | https://ai114.xyz | ✅ 활성 (SSL 발급 완료, DNS 전파 진행 중) |
-| **Cloudflare Pages** | https://ai-coaching-guide.pages.dev | ✅ 활성 |
-| **관리자 대시보드** | https://ai114.xyz/coach | ✅ 활성 |
-| **개발 가이드 PDF** | https://ai114.xyz/docs/app-development-guide.html | ✅ 활성 |
-
-### 2.2 데이터베이스 현황
-
-- **AI 도구 데이터베이스**: 38개 도구 (시드 데이터 확장 완료)
-- **카테고리**: 문서작성, 리서치, 학습, 개발, 영상/미디어, 업무자동화, 고객서비스, 디자인/마케팅, 데이터/크롤링, 음성/입력, 일정관리, 구글 앱스 스크립트
-
-### 2.3 AI 엔진 설정
-
-- **모델**: Gemini 2.5 Flash (안정 버전)
-- **API**: Google Generative Language API
-- **폴백**: 키워드 기반 자동 생성
-
-### 2.4 현재 알려진 이슈
-
-| 이슈 | 상태 | 해결 방법 |
-|------|------|----------|
-| SSL 인증서 발급 | ⏳ 진행 중 | DNS 전파 완료 대기 |
-| DNS 전파 | ⏳ 진행 중 | 최대 48시간 소요 |
-| 휴지통 아이콘 미표시 (브라우저 캐시) | ✅ 해결됨 | 강력 새로고침 또는 새 배포 URL 접속 |
-
----
-
-# Part 2: 교훈 및 예방책
-
-## 3. 실제 발생한 문제와 해결책 (교훈 모음)
+## 2. 실제 발생한 문제와 해결책 (교훈 모음)
 
 > ⚠️ **중요**: 이 섹션은 실제 개발 과정에서 발생한 문제와 해결책을 정리한 것입니다.
-> 다음 프로젝트에서 동일한 문제가 발생하지 않도록 **반드시 숙지**하세요.
+> 다음 프로젝트에서 동일한 문제가 발생하지 않도록 반드시 숙지하세요.
 
-### 3.1 🗑️ 휴지통 기능 누락 문제
+### 2.1 🗑️ 휴지통 기능 누락 문제
 
 **발생 상황:**
-- 관리자가 레코드 삭제 기능을 요청했으나 초기 설계에 삭제 기능 미포함
-- 나중에 추가 요청으로 DB 마이그레이션 및 API 추가 작업 발생
+- 관리자가 레코드 삭제 기능을 요청
+- 초기 설계에 삭제 기능 미포함
 
-**실제 요청 내용:**
+**요청 내용:**
 ```
 "관리자 모드에서 보고서 레코드 별 뒷부분에 휴지통 아이콘을 추가해서 
 삭제 처리하면 휴지통으로 넣어서 통계에 잡히지 않도록 하고, 
@@ -155,27 +79,25 @@
 5. 30일 경과 항목 정리 API 구현 (`POST /api/admin/trash/cleanup`)
 6. 모든 조회 쿼리에 `WHERE deleted_at IS NULL` 조건 추가
 
-**✅ 예방책 (차후 프로젝트에서 사전 확인):**
+**예방책:**
 ```
-□ 개발 시작 전 삭제 방식 결정 (소프트 삭제 vs 하드 삭제)
-□ 초기 DB 스키마에 deleted_at 컬럼 필수 포함
-□ 휴지통 기능을 기본 기능으로 설계
-□ 삭제된 데이터 복원 정책 확정 (30일 보관 등)
+✅ 개발 시작 전 삭제 방식 결정 (소프트 삭제 vs 하드 삭제)
+✅ 초기 DB 스키마에 deleted_at 컬럼 필수 포함
+✅ 휴지통 기능을 기본 기능으로 설계
 ```
 
 ---
 
-### 3.2 🔘 삭제 버튼 미표시 문제
+### 2.2 🔘 삭제 버튼 미표시 문제
 
 **발생 상황:**
 - 삭제 기능 구현 후 배포했으나 버튼이 화면에 표시되지 않음
 - 여러 번 배포해도 동일 문제 발생
-- 사용자가 "삭제 버튼이 어디 있나요?"라고 문의
 
 **원인 분석:**
-1. 아이콘만 있는 버튼 (텍스트 없음) - 너무 작아서 인식 불가
+1. 아이콘만 있는 버튼 (텍스트 없음)
 2. 버튼 크기/색상이 눈에 띄지 않음
-3. 브라우저 캐시 문제로 이전 버전 표시
+3. 브라우저 캐시 문제
 
 **해결책:**
 ```html
@@ -188,25 +110,23 @@
 </button>
 ```
 
-**✅ 예방책:**
+**예방책:**
 ```
-□ 모든 버튼에 반드시 텍스트 레이블 포함
-□ 액션별 색상 코드 통일 (삭제=빨강, 확인=초록 등)
-□ 배포 후 시크릿 모드에서 테스트
-□ 새 배포 URL로 직접 접속하여 테스트
-□ UI 가이드라인 문서화 (버튼 설계 표준)
+✅ 모든 버튼에 반드시 텍스트 레이블 포함
+✅ 액션별 색상 코드 통일 (삭제=빨강, 확인=초록 등)
+✅ 배포 후 시크릿 모드에서 테스트
+✅ 새 배포 URL로 직접 접속하여 테스트
 ```
 
 ---
 
-### 3.3 📊 점수 표시 불명확 문제
+### 2.3 📊 점수 표시 불명확 문제
 
 **발생 상황:**
 - 추천 AI 도구 TOP 5 목록에 점수가 표시되었으나
 - 사용자가 점수의 의미와 만점 기준을 이해하지 못함
-- "37점이 높은 건가요 낮은 건가요?"라는 문의
 
-**실제 요청 내용:**
+**요청 내용:**
 ```
 "분석 보고서 중 추천 AI도구 TOP 5 목록 뒷쪽 점수가 무엇을 뜻하는지 
 사용자들이 기준이나 의미, 점수를 이해하기 어려워. 몇 점 만점인지, 
@@ -229,7 +149,7 @@
               bg-gray-800 text-white text-xs rounded-lg shadow-lg 
               opacity-0 invisible group-hover:opacity-100 group-hover:visible 
               transition-all duration-200 w-72 z-50">
-    <div class="font-bold mb-2 text-purple-300">📊 추천 점수 안내</div>
+    <div class="font-bold mb-2 text-purple-300">추천 점수 안내</div>
     <ul class="space-y-1 text-gray-200">
       <li>• <strong>100점 만점</strong> 기준으로 산정</li>
       <li>• 업무 키워드 일치도 (40%)</li>
@@ -254,37 +174,35 @@
 </div>
 ```
 
-**✅ 예방책:**
+**예방책:**
 ```
-□ 점수/평점 시스템 설계 시 만점 기준 명확히 정의
-□ 사용자에게 점수 산정 기준 안내 UI 필수 포함
-□ 인포 아이콘 + 툴팁 패턴 표준화
-□ 설계 단계에서 점수 가중치 문서화
+✅ 점수/평점 시스템 설계 시 만점 기준 명확히 정의
+✅ 사용자에게 점수 산정 기준 안내 UI 필수 포함
+✅ 인포 아이콘 + 툴팁 패턴 표준화
 ```
 
 ---
 
-### 3.4 🔄 AI 모델 버전 문제
+### 2.4 🔄 AI 모델 버전 문제
 
 **발생 상황:**
 - Gemini 프리뷰 버전 사용 중 안정성 문제 발생
-- 사용자가 "Gemini 3 Flash"로 변경 요청 (존재하지 않는 모델명)
+- 사용자가 "Gemini 3 Flash"로 변경 요청
 
 **해결책:**
 - 프리뷰 버전(`gemini-2.5-flash-preview-05-20`) → 안정 버전(`gemini-2.5-flash`)으로 변경
 - 존재하지 않는 모델명 요청 시 현재 사용 가능한 최신 안정 버전 안내
 
-**✅ 예방책:**
+**예방책:**
 ```
-□ AI 모델은 항상 안정 버전 사용 (프리뷰 버전 지양)
-□ 모델 버전을 환경 변수로 관리하여 쉽게 변경 가능하도록 설계
-□ 모델 변경 시 폴백 로직 필수 구현
-□ 모델 문서에 현재 사용 가능한 모델 목록 유지
+✅ AI 모델은 항상 안정 버전 사용 (프리뷰 버전 지양)
+✅ 모델 버전을 환경 변수로 관리하여 쉽게 변경 가능하도록 설계
+✅ 모델 변경 시 폴백 로직 필수 구현
 ```
 
 ---
 
-### 3.5 📂 AI 도구 데이터베이스 확장
+### 2.5 📂 AI 도구 데이터베이스 확장
 
 **발생 상황:**
 - 초기 22개 도구 → 38개 도구로 확장 요청
@@ -292,26 +210,23 @@
 
 **해결책:**
 1. `seed_tools_2026.sql` 파일 생성
-2. 새로운 도구 데이터 추가 (총 38개)
+2. 새로운 도구 데이터 추가
 3. 프로덕션 DB에 적용 (`wrangler d1 execute --remote --file=./seed_tools.sql`)
-4. 코드에 인라인 시드 데이터 업데이트
 
-**✅ 예방책:**
+**예방책:**
 ```
-□ 시드 데이터는 별도 SQL 파일로 관리
-□ INSERT OR REPLACE 사용하여 중복 방지
-□ 도구 데이터 업데이트 절차 문서화
-□ 확장 가능한 카테고리 구조 설계
+✅ 시드 데이터는 별도 SQL 파일로 관리
+✅ INSERT OR REPLACE 사용하여 중복 방지
+✅ 도구 데이터 업데이트 절차 문서화
 ```
 
 ---
 
-### 3.6 🌐 브라우저 캐시 문제
+### 2.6 🌐 브라우저 캐시 문제
 
 **발생 상황:**
 - 배포 후에도 이전 버전이 표시됨
 - 새로 추가한 기능이 보이지 않음
-- 사용자가 "아무것도 안 바뀌었는데요?"라고 문의
 
 **해결책:**
 1. 새 배포 URL(`https://xxxxx.ai-coaching-guide.pages.dev`)로 직접 접속
@@ -319,74 +234,48 @@
 3. 시크릿 모드에서 테스트
 4. 개발자 도구 → Network → "Disable cache" 체크
 
-**✅ 예방책:**
+**예방책:**
 ```
-□ 배포 후 반드시 새 배포 URL로 테스트
-□ 정적 파일에 버전 쿼리스트링 추가 고려 (?v=1.0.1)
-□ 캐시 관련 헤더 설정 검토
-□ 테스트 체크리스트에 "캐시 우회 테스트" 항목 추가
+✅ 배포 후 반드시 새 배포 URL로 테스트
+✅ 정적 파일에 버전 쿼리스트링 추가 고려 (?v=1.0.1)
+✅ 캐시 관련 헤더 설정 검토
 ```
 
 ---
 
-### 3.7 📝 기존 DB 수정 vs 새 DB 생성 혼동
+### 2.7 📝 기존 DB 수정 vs 새 DB 생성 혼동
 
 **발생 상황:**
 - "ai-coaching-db가 이미 생성되어 있는데 수정만 하면 되는 거 아니니?"
-- DB 변경 방법에 대한 혼란
 
 **해결책:**
 - 기존 DB에 ALTER TABLE로 컬럼 추가
 - 마이그레이션 파일 생성 및 적용
 
-**✅ 예방책:**
+**예방책:**
 ```
-□ DB 변경 시 항상 마이그레이션 파일 생성
-□ 마이그레이션 파일명 규칙: 0001_description.sql, 0002_description.sql
-□ 로컬 테스트 후 프로덕션 적용
-□ 마이그레이션 롤백 절차 문서화
-```
-
----
-
-### 3.8 🔐 SSL 인증서 및 DNS 전파 지연
-
-**발생 상황:**
-- 커스텀 도메인(ai114.xyz) 설정 후 SSL 인증서 발급 지연
-- HTTPS 접속 불가 상태 지속
-
-**현재 상태:**
-- SSL 인증서 발급: ⏳ 진행 중
-- DNS 전파: ⏳ 진행 중 (최대 48시간 소요)
-
-**✅ 예방책:**
-```
-□ 커스텀 도메인 설정은 런칭 2-3일 전에 미리 진행
-□ DNS 전파 시간 고려하여 일정 계획
-□ 임시로 Cloudflare Pages 기본 URL 제공
-□ SSL 상태 모니터링 방법 사용자에게 안내
+✅ DB 변경 시 항상 마이그레이션 파일 생성
+✅ 마이그레이션 파일명 규칙: 0001_description.sql, 0002_description.sql
+✅ 로컬 테스트 후 프로덕션 적용
 ```
 
 ---
 
-# Part 3: 사전 준비 (Pre-Launch)
+## 3. 개발 전 필수 확인 체크리스트
 
-## 4. 개발 전 필수 확인 체크리스트
-
-### 4.1 기능 요구사항 확정 ⚠️ 최우선
+### 3.1 기능 요구사항 확정 ⚠️ 최우선
 
 ```
 □ 전체 페이지 목록 작성
 □ 각 페이지별 기능 명세
 □ 사용자 역할 및 권한 정의
 □ 삭제 방식 결정 (소프트 삭제 권장)
-□ 휴지통 기능 포함 여부 확정
+□ 휴지통 기능 포함 여부
 □ 점수/평점 시스템 설계 (만점 기준, 산정 방식)
 □ 인포 아이콘/툴팁 필요 항목 식별
-□ 데이터 보존 정책 (삭제 데이터 보관 기간)
 ```
 
-### 4.2 데이터베이스 설계 확정
+### 3.2 데이터베이스 설계 확정
 
 ```
 □ 모든 테이블 스키마 확정
@@ -395,10 +284,9 @@
 □ 필요한 인덱스 설계
 □ 외래키 관계 정의
 □ 시드 데이터 준비
-□ 마이그레이션 전략 수립
 ```
 
-### 4.3 UI/UX 요구사항 확정
+### 3.3 UI/UX 요구사항 확정
 
 ```
 □ 버튼 디자인 표준 정의
@@ -408,21 +296,18 @@
 □ 모달/팝업 디자인
 □ 통계 카드 레이아웃
 □ 반응형 브레이크포인트
-□ 로딩 상태 UI
-□ 에러 상태 UI
 ```
 
-### 4.4 API 키 및 인증 준비
+### 3.4 API 키 및 인증 준비
 
 ```
 □ Cloudflare API 토큰 확보
 □ Gemini API 키 확보
 □ GitHub 연동 설정 (선택)
 □ 커스텀 도메인 준비 (선택)
-□ 환경 변수 목록 정리
 ```
 
-### 4.5 점수 시스템 설계 (해당 시)
+### 3.5 점수 시스템 설계 (해당 시)
 
 ```
 □ 점수 만점 기준 정의 (예: 100점)
@@ -432,108 +317,28 @@
   - 평점/인기도: 30%
   - 난이도/접근성: 20%
   - 가격: 10%
-□ 점수 설명 UI (인포 아이콘 + 툴팁) 설계
+□ 점수 설명 UI (인포 아이콘 + 툴팁)
 ```
 
 ---
 
-## 5. 프로젝트 범위 정의 (Project Scoping)
+## 4. 기술 스택 및 아키텍처
 
-### 5.1 범위 정의 템플릿
+### 4.1 기술 스택
 
-```markdown
-## 프로젝트 범위 문서
+| 계층 | 기술 | 버전 | 용도 |
+|------|------|------|------|
+| 프레임워크 | Hono | ^4.0.0 | 경량 웹 프레임워크 |
+| 런타임 | Cloudflare Workers | Edge | 서버리스 엣지 컴퓨팅 |
+| 데이터베이스 | Cloudflare D1 | - | SQLite 기반 글로벌 DB |
+| 빌드 도구 | Vite | ^5.0.0 | 빠른 빌드 및 HMR |
+| 언어 | TypeScript | ^5.0.0 | 타입 안전성 |
+| 스타일링 | Tailwind CSS | CDN | 유틸리티 CSS |
+| 아이콘 | FontAwesome | CDN | 아이콘 라이브러리 |
+| 차트 | Chart.js | CDN | 데이터 시각화 |
+| AI | Google Gemini | 2.5-flash | AI 코칭 생성 |
 
-### 1. 목표 및 목적
-- [명확한 비즈니스 목표 기술]
-- [측정 가능한 성공 지표]
-
-### 2. 포함 범위 (In-Scope)
-- [ ] 기능 1: [설명]
-- [ ] 기능 2: [설명]
-- [ ] ...
-
-### 3. 제외 범위 (Out-of-Scope)
-- [ ] 기능 A: [이유]
-- [ ] 기능 B: [이유]
-
-### 4. 가정 사항
-- [전제 조건 나열]
-
-### 5. 제약 사항
-- [기술적/비즈니스적 제약]
-
-### 6. 위험 요소
-- [식별된 위험 및 대응 방안]
-```
-
-### 5.2 Phase 2 범위 (현재 프로젝트)
-
-| 기능 | 설명 | 상태 |
-|------|------|------|
-| 이메일 알림 | Gmail Compose URL 기반 알림 발송 | ⏳ 계획 |
-| CSV Import | 대량 업무 데이터 일괄 등록 | ⏳ 계획 |
-| CSV Export | 전체 데이터 백업 내보내기 | ⏳ 계획 |
-| 통계 대시보드 | Chart.js 기반 시각화 차트 | ⏳ 계획 |
-
----
-
-## 6. 위험 식별 및 완화 전략
-
-### 6.1 위험 매트릭스
-
-| 위험 | 영향도 | 발생 확률 | 완화 전략 |
-|------|--------|----------|----------|
-| 브라우저 캐시로 인한 UI 미반영 | 중 | 높음 | 새 배포 URL 테스트, 버전 쿼리스트링 |
-| 삭제 기능 누락 | 높음 | 중 | 초기 설계에 소프트 삭제 필수 포함 |
-| AI API 장애 | 높음 | 낮음 | 폴백 로직 구현 |
-| SSL 발급 지연 | 중 | 중 | 2-3일 전 미리 도메인 설정 |
-| 점수 의미 불명확 | 중 | 높음 | 인포 아이콘 + 툴팁 필수 |
-| DB 마이그레이션 오류 | 높음 | 낮음 | 로컬 테스트 후 프로덕션 적용 |
-
-### 6.2 위험 대응 계획 템플릿
-
-```markdown
-## 위험: [위험명]
-
-### 설명
-[위험에 대한 상세 설명]
-
-### 영향
-[발생 시 영향 범위]
-
-### 완화 전략
-1. [전략 1]
-2. [전략 2]
-
-### 대응 계획
-[위험 발생 시 즉각 대응 절차]
-
-### 담당자
-[책임자 지정]
-```
-
----
-
-# Part 4: 아키텍처 및 설계
-
-## 7. 기술 스택 및 아키텍처 결정
-
-### 7.1 기술 스택
-
-| 계층 | 기술 | 버전 | 용도 | 선택 이유 |
-|------|------|------|------|----------|
-| 프레임워크 | Hono | ^4.0.0 | 경량 웹 프레임워크 | Cloudflare Workers 최적화 |
-| 런타임 | Cloudflare Workers | Edge | 서버리스 엣지 컴퓨팅 | 글로벌 저지연 |
-| 데이터베이스 | Cloudflare D1 | - | SQLite 기반 글로벌 DB | 서버리스 친화적 |
-| 빌드 도구 | Vite | ^5.0.0 | 빠른 빌드 및 HMR | 모던 빌드 환경 |
-| 언어 | TypeScript | ^5.0.0 | 타입 안전성 | 개발 생산성 |
-| 스타일링 | Tailwind CSS | CDN | 유틸리티 CSS | 빠른 프로토타이핑 |
-| 아이콘 | FontAwesome | CDN | 아이콘 라이브러리 | 풍부한 아이콘 |
-| 차트 | Chart.js | CDN | 데이터 시각화 | 간편한 차트 |
-| AI | Google Gemini | 2.5-flash | AI 코칭 생성 | 안정적인 API |
-
-### 7.2 프로젝트 구조
+### 4.2 프로젝트 구조
 
 ```
 webapp/
@@ -550,7 +355,7 @@ webapp/
 │   ├── 0001_initial_schema.sql    # 초기 스키마
 │   └── 0002_add_deleted_at.sql    # 소프트 삭제 컬럼
 ├── docs/
-│   └── APP_DEVELOPMENT_GUIDE.md   # 이 개발 가이드
+│   └── APP_DEVELOPMENT_GUIDE.md   # 개발 가이드
 ├── wrangler.jsonc             # Cloudflare 설정
 ├── vite.config.ts             # Vite 설정
 ├── package.json
@@ -560,7 +365,7 @@ webapp/
 └── README.md
 ```
 
-### 7.3 아키텍처 다이어그램
+### 4.3 아키텍처 다이어그램
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -592,9 +397,9 @@ webapp/
 
 ---
 
-## 8. 데이터베이스 설계 완전 가이드
+## 5. 데이터베이스 설계 완전 가이드
 
-### 8.1 테이블 스키마 (38개 도구 지원)
+### 5.1 테이블 스키마
 
 #### tasks 테이블 (업무)
 ```sql
@@ -637,7 +442,7 @@ CREATE TABLE comments (
     learning_priority TEXT,              -- 학습 우선순위
     general_comment TEXT,                -- 종합 코멘트
     status TEXT DEFAULT 'draft',         -- draft/published
-    coach_name TEXT DEFAULT '디마불사',
+    coach_name TEXT DEFAULT '코치명',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
@@ -646,7 +451,7 @@ CREATE TABLE comments (
 CREATE INDEX idx_comments_task_id ON comments(task_id);
 ```
 
-#### ai_tools 테이블 (AI 도구 마스터 - 38개)
+#### ai_tools 테이블 (AI 도구 마스터)
 ```sql
 CREATE TABLE ai_tools (
     id TEXT PRIMARY KEY,
@@ -672,7 +477,7 @@ CREATE INDEX idx_ai_tools_category ON ai_tools(category);
 CREATE INDEX idx_ai_tools_is_active ON ai_tools(is_active);
 ```
 
-### 8.2 마이그레이션 파일 관리
+### 5.2 마이그레이션 파일 관리
 
 ```
 migrations/
@@ -691,7 +496,18 @@ ALTER TABLE tasks ADD COLUMN deleted_at INTEGER DEFAULT NULL;
 CREATE INDEX IF NOT EXISTS idx_tasks_deleted_at ON tasks(deleted_at);
 ```
 
-### 8.3 소프트 삭제 쿼리 패턴 ⚠️ 필수
+### 5.3 시드 데이터 관리
+
+**seed_tools_2026.sql 구조:**
+```sql
+-- AI 도구 시드 데이터
+INSERT OR REPLACE INTO ai_tools (id, name, category, subcategory, description, website_url, use_cases, keywords, automation_level, difficulty, pricing_type, rating, popularity, is_active, created_at, updated_at)
+VALUES 
+('tool-001', 'ChatGPT', '문서작성', '다목적 AI', 'OpenAI GPT-5 Pro 기반 대화형 AI...', 'https://chatgpt.com', '문서 초안 작성,이메일 작성,보고서 요약', '문서,작성,보고서,이메일', 'semi', 'beginner', 'freemium', 4.9, 100, 1, 1737200000000, 1737200000000),
+-- ... 추가 도구들
+```
+
+### 5.4 소프트 삭제 쿼리 패턴 ⚠️ 필수
 
 ```sql
 -- ❌ 잘못된 예: deleted_at 조건 누락
@@ -713,30 +529,11 @@ UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?;
 DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?;
 ```
 
-### 8.4 38개 AI 도구 카테고리 구조
-
-| 카테고리 | 도구 수 | 대표 도구 |
-|----------|--------|----------|
-| 문서작성 | 4개 | ChatGPT, Claude, Notion AI, Gamma |
-| 리서치 | 4개 | Perplexity AI, Google Deep Research, Liner, Genspark |
-| 학습 | 2개 | NotebookLM, 클로바노트 |
-| 개발 | 5개 | Cursor AI, Google Colab, AI Studio, Readi, Genspark AI Developer |
-| 영상생성/편집 | 4개 | Sora 2, VEO 3.1, CapCut, Vrew |
-| 음악생성 | 2개 | Suno AI, Udio |
-| 이미지생성 | 1개 | Nano Banana Pro |
-| 업무자동화 | 4개 | Make, Zapier, 에이닷 전화, Google Apps Script |
-| 고객서비스 | 2개 | Typebot, 카카오 채널 챗봇 |
-| 마케팅 | 2개 | Canva AI, Gemini Gems |
-| 데이터분석 | 2개 | Listly, Julius AI |
-| 음성 | 2개 | AI Studio TTS, Voice In |
-| 일정관리 | 1개 | Notion 캘린더 |
-| 다목적 | 3개 | Gemini 3 Pro 등 |
-
 ---
 
-## 9. API 계약 (API Contracts)
+## 6. API 설계 완전 명세
 
-### 9.1 공개 API (인증 불필요)
+### 6.1 공개 API (인증 불필요)
 
 | 메서드 | 경로 | 설명 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -747,7 +544,7 @@ DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?;
 | GET | `/api/tasks?email=xxx` | 이메일별 조회 | query: email | `{ success, data: Task[] }` |
 | GET | `/api/history/:email` | 수강생 이력 | - | `{ success, data: { email, stats, tasks } }` |
 
-### 9.2 관리자 API (인증 필요)
+### 6.2 관리자 API (인증 필요)
 
 | 메서드 | 경로 | 설명 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -758,7 +555,7 @@ DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?;
 | GET | `/api/admin/trash` | 휴지통 목록 | - | `{ success, data: Task[], total }` |
 | POST | `/api/admin/trash/cleanup` | 30일 정리 | - | `{ success, deleted_count }` |
 
-### 9.3 CRUD API (소프트 삭제/휴지통)
+### 6.3 CRUD API
 
 | 메서드 | 경로 | 설명 | 동작 |
 |--------|------|------|------|
@@ -766,7 +563,7 @@ DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?;
 | POST | `/api/tasks/:id/restore` | 복원 | `deleted_at = NULL` |
 | DELETE | `/api/tasks/:id/permanent` | 영구 삭제 | `DELETE FROM tasks` |
 
-### 9.4 유틸리티 API
+### 6.4 유틸리티 API
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
@@ -775,7 +572,7 @@ DELETE FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ?;
 | POST | `/api/email/compose` | Gmail 작성 URL 생성 |
 | GET | `/api/init` | DB 초기화 (개발용) |
 
-### 9.5 API 응답 형식 표준
+### 6.5 API 응답 형식
 
 ```typescript
 // 성공 응답
@@ -803,48 +600,9 @@ interface ErrorResponse {
 
 ---
 
-## 10. 보안 및 역할 기반 접근 제어 (RBAC)
+## 7. UI/UX 설계 표준
 
-### 10.1 현재 인증 방식
-
-| 역할 | 인증 방식 | 보안 수준 |
-|------|----------|----------|
-| 수강생 | 이메일 식별 (인증 없음) | 낮음 |
-| 관리자 | 비밀번호 기반 | 중간 |
-
-### 10.2 API 접근 제어
-
-```typescript
-// 관리자 API 보호 예시
-app.post('/api/admin/login', async (c) => {
-  const { password } = await c.req.json();
-  
-  // 환경 변수 또는 하드코딩된 비밀번호 확인
-  if (password !== 'coach2026!') {
-    return c.json({ success: false, error: '비밀번호가 올바르지 않습니다.' }, 401);
-  }
-  
-  return c.json({ success: true, message: '로그인 성공' });
-});
-```
-
-### 10.3 향후 개선 권장 사항
-
-```
-□ JWT 토큰 기반 인증 도입
-□ 세션 관리 구현
-□ API Rate Limiting
-□ CORS 설정 강화
-□ 환경 변수로 비밀번호 관리
-```
-
----
-
-# Part 5: UI/UX 및 AI 연동
-
-## 11. UI/UX 설계 표준
-
-### 11.1 버튼 디자인 가이드 ⚠️ 필수 준수
+### 7.1 버튼 디자인 가이드 ⚠️ 필수 준수
 
 ```html
 <!-- 기본 버튼 (회색) - 보기, 취소 등 -->
@@ -878,7 +636,7 @@ app.post('/api/admin/login', async (c) => {
 </button>
 ```
 
-### 11.2 인포 아이콘 + 툴팁 패턴 ⚠️ 점수/복잡한 정보에 필수
+### 7.2 인포 아이콘 + 툴팁 패턴 ⚠️ 점수/복잡한 정보에 필수
 
 ```html
 <span class="relative inline-block ml-2 group cursor-help">
@@ -892,7 +650,7 @@ app.post('/api/admin/login', async (c) => {
               transition-all duration-200 w-72 z-50">
     
     <!-- 툴팁 제목 -->
-    <div class="font-bold mb-2 text-purple-300">📊 제목</div>
+    <div class="font-bold mb-2 text-purple-300">제목</div>
     
     <!-- 툴팁 내용 -->
     <ul class="space-y-1 text-gray-200">
@@ -912,22 +670,103 @@ app.post('/api/admin/login', async (c) => {
 </span>
 ```
 
-### 11.3 색상 코드 표준
+### 7.3 목록 아이템 구조
 
-| 액션 | 배경색 | 텍스트색 | 용도 |
-|------|--------|---------|------|
-| 기본 | gray-100 | gray-700 | 보기, 취소, 중립 |
-| 주요 | purple-600 | white | 핵심 기능, CTA |
-| 보조 | blue-100 | blue-700 | 링크, 이메일, 정보 |
-| 성공 | green-100 | green-600 | 완료, 확인, 복원 |
-| 위험 | red-100 | red-600 | 삭제, 경고 |
-| 경고 | yellow-100 | yellow-700 | 주의, 대기 |
+```html
+<div class="border border-gray-200 rounded-xl p-5 hover:shadow-md transition">
+  <div class="flex items-start gap-4">
+    <!-- 순번 또는 아이콘 -->
+    <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+      <span class="text-purple-600 font-bold">1</span>
+    </div>
+    
+    <!-- 정보 영역 -->
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 mb-2 flex-wrap">
+        <h3 class="font-bold text-gray-800">제목</h3>
+        <span class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">태그</span>
+      </div>
+      <p class="text-sm text-gray-600 mb-2">설명 텍스트</p>
+      <p class="text-xs text-gray-500">부가 정보</p>
+    </div>
+    
+    <!-- 점수/상태 영역 -->
+    <div class="text-right">
+      <p class="text-sm text-gray-500">추천점수</p>
+      <p class="text-xl font-bold text-purple-600">85점</p>
+      <p class="text-xs text-gray-400">(100점 만점)</p>
+    </div>
+  </div>
+</div>
+```
+
+### 7.4 통계 카드 레이아웃
+
+```html
+<div class="grid md:grid-cols-5 gap-4 mb-8">
+  <!-- 통계 카드 -->
+  <div class="bg-white rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-md transition">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+        <i class="fas fa-tasks text-purple-600 text-xl"></i>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">전체</p>
+        <p class="text-2xl font-bold text-gray-800">100</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 휴지통 카드 (클릭 가능) -->
+  <div class="bg-white rounded-xl p-6 shadow-sm cursor-pointer hover:shadow-md transition" 
+       onclick="showTrash()">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+        <i class="fas fa-trash text-red-600 text-xl"></i>
+      </div>
+      <div>
+        <p class="text-sm text-gray-500">휴지통</p>
+        <p class="text-2xl font-bold text-gray-800">5</p>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### 7.5 모달 구조
+
+```html
+<div id="modal-id" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <!-- 모달 헤더 -->
+    <h2 class="text-xl font-bold text-gray-800 mb-6">
+      <i class="fas fa-icon text-purple-600 mr-2"></i>모달 제목
+    </h2>
+    
+    <!-- 모달 내용 -->
+    <div class="space-y-4">
+      <!-- 폼 필드 등 -->
+    </div>
+    
+    <!-- 모달 푸터 -->
+    <div class="flex justify-end gap-4 mt-6">
+      <button onclick="closeModal('modal-id')" 
+              class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+        취소
+      </button>
+      <button class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+        확인
+      </button>
+    </div>
+  </div>
+</div>
+```
 
 ---
 
-## 12. AI 엔진 연동 (Gemini 2.5 Flash)
+## 8. AI 연동 (Gemini API)
 
-### 12.1 API 호출 함수
+### 8.1 API 호출 함수
 
 ```typescript
 // src/lib/gemini.ts
@@ -958,7 +797,7 @@ export async function callGeminiAPI(apiKey: string, prompt: string): Promise<str
 }
 ```
 
-### 12.2 프롬프트 설계
+### 8.2 프롬프트 설계
 
 ```typescript
 export function buildCoachingPrompt(
@@ -986,10 +825,33 @@ ${recommendedTools.map((t, i) => `${i + 1}. ${t.tool.name}: ${t.tool.description
 ## 출력 형식 (JSON)
 {
   "summary": "한 줄 요약",
-  "workflow": [...],
-  "time_analysis": {...},
-  "learning_roadmap": [...],
-  "coaching_tips": [...],
+  "workflow": [
+    {
+      "step_number": 1,
+      "title": "단계 제목",
+      "tool_name": "사용 도구",
+      "tool_url": "도구 URL",
+      "specific_feature": "사용 기능",
+      "action_items": ["실행 항목 1", "실행 항목 2"],
+      "expected_output": "예상 결과물",
+      "time_estimate": "예상 소요 시간",
+      "tips": "팁"
+    }
+  ],
+  "time_analysis": {
+    "before": "자동화 전 소요 시간",
+    "after": "자동화 후 소요 시간",
+    "efficiency_gain": "효율 개선율"
+  },
+  "learning_roadmap": [
+    {
+      "priority": 1,
+      "tool_name": "도구명",
+      "reason": "학습 이유",
+      "resources": ["학습 자료 URL"]
+    }
+  ],
+  "coaching_tips": ["팁 1", "팁 2"],
   "conclusion": "종합 의견"
 }
 
@@ -1002,7 +864,7 @@ ${recommendedTools.map((t, i) => `${i + 1}. ${t.tool.name}: ${t.tool.description
 }
 ```
 
-### 12.3 폴백 로직 (API 실패 시)
+### 8.3 폴백 로직
 
 ```typescript
 export function generateFallbackCoaching(
@@ -1046,9 +908,9 @@ export function generateFallbackCoaching(
 
 ---
 
-## 13. 점수/평점 시스템 설계
+## 9. 점수/평점 시스템 설계
 
-### 13.1 점수 계산 공식
+### 9.1 점수 계산 공식
 
 ```typescript
 // src/lib/recommendation.ts
@@ -1084,7 +946,7 @@ export function calculateToolScore(tool: AITool, keywords: string[]): { score: n
 }
 ```
 
-### 13.2 100점 만점 정규화
+### 9.2 100점 만점 정규화
 
 ```javascript
 // 프론트엔드에서 점수 표시
@@ -1095,7 +957,7 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
  <p class="text-xs text-gray-400">(100점 만점)</p>`
 ```
 
-### 13.3 점수 산정 기준 안내 (사용자용)
+### 9.3 점수 산정 기준 안내 (툴팁)
 
 | 항목 | 비중 | 설명 |
 |------|------|------|
@@ -1106,9 +968,7 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
 
 ---
 
-# Part 6: 개발 워크플로우
-
-## 14. 단계별 개발 프로세스 (Step-by-Step)
+## 10. 단계별 개발 프로세스
 
 ### Phase 1: 프로젝트 초기화 (30분)
 
@@ -1143,22 +1003,26 @@ git commit -m "Initial commit"
 ```bash
 # 1. D1 데이터베이스 생성
 npx wrangler d1 create app-db
-# 출력된 database_id를 wrangler.jsonc에 복사
 
-# 2. 마이그레이션 디렉토리 생성
+# 2. wrangler.jsonc에 database_id 추가
+# 출력된 database_id를 복사하여 설정
+
+# 3. 마이그레이션 디렉토리 생성
 mkdir migrations
 
-# 3. 마이그레이션 파일 작성
+# 4. 초기 스키마 작성
 # migrations/0001_initial_schema.sql
-# migrations/0002_add_deleted_at.sql (소프트 삭제용)
 
-# 4. 로컬 마이그레이션 실행
+# 5. 소프트 삭제 컬럼 추가
+# migrations/0002_add_deleted_at.sql
+
+# 6. 로컬 마이그레이션 실행
 npx wrangler d1 migrations apply app-db --local
 
-# 5. 프로덕션 마이그레이션 실행
+# 7. 프로덕션 마이그레이션 실행
 npx wrangler d1 migrations apply app-db --remote
 
-# 6. 시드 데이터 적용
+# 8. 시드 데이터 적용
 npx wrangler d1 execute app-db --remote --file=./seed_tools.sql
 ```
 
@@ -1254,74 +1118,16 @@ curl https://xxxxx.app-name.pages.dev/api/admin/stats
 
 ---
 
-## 15. CI/CD 파이프라인
+## 11. 배포 프로세스
 
-### 15.1 수동 배포 워크플로우 (현재)
-
-```bash
-# 1. 코드 변경
-# 2. 빌드
-npm run build
-
-# 3. Git 커밋
-git add .
-git commit -m "feat: 기능 설명"
-
-# 4. 배포
-npx wrangler pages deploy dist --project-name ai-coaching-guide
-
-# 5. 테스트
-curl https://xxxxx.ai-coaching-guide.pages.dev/api/admin/stats
-```
-
-### 15.2 권장 CI/CD 파이프라인 (GitHub Actions)
-
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy to Cloudflare Pages
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Install dependencies
-        run: npm ci
-        
-      - name: Build
-        run: npm run build
-        
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy dist --project-name ai-coaching-guide
-```
-
----
-
-# Part 7: 배포 및 운영
-
-## 16. 배포 절차
-
-### 16.1 첫 배포 체크리스트
+### 11.1 첫 배포 체크리스트
 
 ```
 □ Cloudflare API 키 설정 완료
 □ D1 데이터베이스 생성 완료
 □ wrangler.jsonc에 database_id 설정
 □ 마이그레이션 실행 (로컬 + 리모트)
-□ 시드 데이터 적용 (38개 AI 도구)
+□ 시드 데이터 적용
 □ 환경 변수 설정 (GEMINI_API_KEY 등)
 □ 빌드 성공 확인
 □ 배포 성공 확인
@@ -1329,7 +1135,7 @@ jobs:
 □ 모든 기능 동작 확인
 ```
 
-### 16.2 업데이트 배포
+### 11.2 업데이트 배포
 
 ```bash
 # 1. 변경사항 빌드
@@ -1340,88 +1146,36 @@ git add .
 git commit -m "feat: 기능 설명"
 
 # 3. 배포
-npx wrangler pages deploy dist --project-name ai-coaching-guide
+npx wrangler pages deploy dist --project-name app-name
 
 # 4. 새 배포 URL로 테스트 (출력된 URL 사용)
-# https://xxxxx.ai-coaching-guide.pages.dev
+# https://xxxxx.app-name.pages.dev
 
 # 5. 프로덕션 도메인에서 강력 새로고침 후 확인
 ```
 
-### 16.3 DB 스키마 변경 시
+### 11.3 DB 스키마 변경 시
 
 ```bash
 # 1. 마이그레이션 파일 생성
 # migrations/0003_new_feature.sql
 
 # 2. 로컬 테스트
-npx wrangler d1 migrations apply ai-coaching-db --local
+npx wrangler d1 migrations apply app-db --local
 
 # 3. 프로덕션 적용
-npx wrangler d1 migrations apply ai-coaching-db --remote
+npx wrangler d1 migrations apply app-db --remote
 
 # 4. 코드 수정 및 배포
 npm run build
-npx wrangler pages deploy dist --project-name ai-coaching-guide
-```
-
-### 16.4 커스텀 도메인 설정
-
-```bash
-# 1. Cloudflare Pages에서 커스텀 도메인 추가
-npx wrangler pages project list
-# Cloudflare Dashboard에서 Custom domains 설정
-
-# 2. DNS 설정 (도메인 등록기관에서)
-# CNAME: ai114.xyz → ai-coaching-guide.pages.dev
-
-# 3. SSL 발급 대기 (최대 24-48시간)
-
-# 4. 확인
-curl -I https://ai114.xyz
+npx wrangler pages deploy dist --project-name app-name
 ```
 
 ---
 
-## 17. 모니터링 및 로깅
+## 12. 테스트 체크리스트
 
-### 17.1 Cloudflare Analytics
-
-- Cloudflare Dashboard → Pages → ai-coaching-guide → Analytics
-- 요청 수, 대역폭, 에러율 모니터링
-
-### 17.2 API 로깅 (코드 내)
-
-```typescript
-// 요청 로깅 미들웨어
-app.use('*', async (c, next) => {
-  const start = Date.now();
-  await next();
-  const ms = Date.now() - start;
-  console.log(`${c.req.method} ${c.req.url} - ${c.res.status} - ${ms}ms`);
-});
-```
-
-### 17.3 에러 모니터링
-
-```typescript
-// 전역 에러 핸들러
-app.onError((err, c) => {
-  console.error('Error:', err);
-  return c.json({ 
-    success: false, 
-    error: err.message || '서버 오류가 발생했습니다.' 
-  }, 500);
-});
-```
-
----
-
-# Part 8: QA 및 테스트
-
-## 18. QA 및 회귀 테스트
-
-### 18.1 기능 테스트 체크리스트
+### 12.1 기능 테스트
 
 #### 수강생 기능
 ```
@@ -1472,7 +1226,7 @@ app.onError((err, c) => {
 □ 30일 정리 기능
 ```
 
-### 18.2 UI 테스트 ⚠️ 필수
+### 12.2 UI 테스트 ⚠️ 필수
 
 ```
 □ 모든 버튼에 텍스트 레이블 있음
@@ -1482,124 +1236,46 @@ app.onError((err, c) => {
 □ 인포 아이콘 호버 시 툴팁 표시
 □ hover 효과 작동
 □ 버튼 크기 일관성
-□ 반응형 레이아웃 (모바일/태블릿/데스크톱)
 ```
 
-### 18.3 API 테스트
+### 12.3 반응형 테스트
+
+```
+□ 데스크톱 (1920px)
+□ 노트북 (1366px)
+□ 태블릿 (768px)
+□ 모바일 (375px)
+```
+
+### 12.4 API 테스트
 
 ```bash
 # 업무 등록
-curl -X POST https://ai114.xyz/api/tasks \
+curl -X POST https://app.pages.dev/api/tasks \
   -H "Content-Type: application/json" \
   -d '{"organization":"테스트","department":"개발팀","name":"홍길동","job_description":"문서 작성","repeat_cycle":"매일","automation_request":"자동화 원함","email":"test@test.com"}'
 
 # 통계 조회
-curl https://ai114.xyz/api/admin/stats
+curl https://app.pages.dev/api/admin/stats
 
 # 휴지통 조회
-curl https://ai114.xyz/api/admin/trash
+curl https://app.pages.dev/api/admin/trash
 
 # 삭제
-curl -X DELETE https://ai114.xyz/api/tasks/{id}
+curl -X DELETE https://app.pages.dev/api/tasks/{id}
 
 # 복원
-curl -X POST https://ai114.xyz/api/tasks/{id}/restore
+curl -X POST https://app.pages.dev/api/tasks/{id}/restore
 
 # 영구 삭제
-curl -X DELETE https://ai114.xyz/api/tasks/{id}/permanent
+curl -X DELETE https://app.pages.dev/api/tasks/{id}/permanent
 ```
 
 ---
 
-## 19. 인수 기준 (Acceptance Criteria)
+## 13. 트러블슈팅 가이드
 
-### 19.1 기능별 인수 기준 템플릿
-
-```markdown
-## 기능: [기능명]
-
-### 사용자 스토리
-[역할]로서 [목표]를 원하며, [이유]이다.
-
-### 인수 기준
-Given: [사전 조건]
-When: [동작]
-Then: [예상 결과]
-
-### 테스트 케이스
-1. [ ] 정상 케이스: [설명]
-2. [ ] 예외 케이스: [설명]
-3. [ ] 경계값 테스트: [설명]
-
-### 완료 정의 (Definition of Done)
-- [ ] 코드 작성 완료
-- [ ] 단위 테스트 통과
-- [ ] UI 테스트 통과
-- [ ] 코드 리뷰 완료
-- [ ] 배포 완료
-- [ ] 프로덕션 테스트 완료
-```
-
-### 19.2 휴지통 기능 인수 기준 예시
-
-```markdown
-## 기능: 휴지통 관리
-
-### 사용자 스토리
-관리자로서 삭제한 업무를 휴지통에서 관리하고 싶으며,
-실수로 삭제한 데이터를 복원하거나 완전히 삭제할 수 있어야 한다.
-
-### 인수 기준
-
-#### AC1: 소프트 삭제
-Given: 관리자가 로그인한 상태에서
-When: 업무 목록에서 "삭제" 버튼을 클릭하면
-Then: 
-  - 확인 다이얼로그가 표시된다
-  - 확인 시 해당 업무가 휴지통으로 이동한다
-  - 목록에서 제외된다
-  - 통계에서 제외된다
-
-#### AC2: 삭제 버튼 디자인
-Given: 관리자 대시보드 업무 목록에서
-When: 삭제 버튼을 확인하면
-Then:
-  - 버튼이 빨간색 배경(bg-red-100)이다
-  - "삭제" 텍스트가 표시된다
-  - 휴지통 아이콘이 포함된다
-
-#### AC3: 휴지통 목록 조회
-Given: 관리자가 로그인한 상태에서
-When: 휴지통 통계 카드를 클릭하면
-Then:
-  - 휴지통 모달이 표시된다
-  - 삭제된 모든 업무가 목록으로 표시된다
-  - 각 항목에 남은 일수가 표시된다
-
-#### AC4: 복원
-Given: 휴지통 목록에서
-When: "복원" 버튼을 클릭하면
-Then:
-  - 해당 업무가 일반 목록으로 복원된다
-  - 휴지통에서 제외된다
-  - 통계에 다시 포함된다
-
-#### AC5: 영구 삭제
-Given: 휴지통 목록에서
-When: "영구삭제" 버튼을 클릭하면
-Then:
-  - 경고 다이얼로그가 표시된다
-  - 확인 시 데이터가 완전히 삭제된다
-  - 복원 불가능해진다
-```
-
----
-
-# Part 9: 문서화 및 참조
-
-## 20. 트러블슈팅 가이드
-
-### 20.1 버튼/아이콘이 보이지 않음
+### 13.1 버튼/아이콘이 보이지 않음
 
 **원인:**
 - 아이콘만 사용하고 텍스트 없음
@@ -1615,7 +1291,7 @@ Then:
 5. 새 배포 URL로 직접 접속
 ```
 
-### 20.2 삭제 기능이 작동하지 않음
+### 13.2 삭제 기능이 작동하지 않음
 
 **원인:**
 - deleted_at 컬럼 없음
@@ -1630,7 +1306,7 @@ Then:
 4. 빌드 파일에 함수 포함 확인: grep "deleteTask" dist/_worker.js
 ```
 
-### 20.3 통계에 삭제된 항목 포함됨
+### 13.3 통계에 삭제된 항목 포함됨
 
 **원인:**
 - 쿼리에 deleted_at IS NULL 조건 누락
@@ -1641,7 +1317,7 @@ Then:
 WHERE deleted_at IS NULL
 ```
 
-### 20.4 점수가 이상하게 표시됨
+### 13.4 점수가 이상하게 표시됨
 
 **원인:**
 - 정규화 로직 오류
@@ -1653,7 +1329,7 @@ WHERE deleted_at IS NULL
 const normalizedScore = Math.min(100, Math.round(item.score * 2));
 ```
 
-### 20.5 툴팁이 표시되지 않음
+### 13.5 툴팁이 표시되지 않음
 
 **원인:**
 - CSS 클래스 오류
@@ -1668,20 +1344,20 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
 4. 부모 요소의 overflow 속성 확인
 ```
 
-### 20.6 배포 후 변경사항 미반영
+### 13.6 배포 후 변경사항 미반영
 
 **원인:**
 - 브라우저 캐시
 
 **해결:**
 ```
-1. 새 배포 URL로 직접 접속 (https://xxxxx.ai-coaching-guide.pages.dev)
+1. 새 배포 URL로 직접 접속 (https://xxxxx.app.pages.dev)
 2. 강력 새로고침 (Ctrl+Shift+R)
 3. 시크릿 모드 사용
 4. 개발자 도구 → Network → "Disable cache" 체크
 ```
 
-### 20.7 Gemini API 오류
+### 13.7 Gemini API 오류
 
 **원인:**
 - API 키 미설정
@@ -1695,7 +1371,7 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
 3. 폴백 로직 구현
 ```
 
-### 20.8 D1 데이터베이스 오류
+### 13.8 D1 데이터베이스 오류
 
 **원인:**
 - database_id 불일치
@@ -1705,14 +1381,14 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
 ```
 1. wrangler.jsonc의 database_id 확인
 2. 마이그레이션 재실행:
-   npx wrangler d1 migrations apply ai-coaching-db --remote
+   npx wrangler d1 migrations apply app-db --remote
 ```
 
 ---
 
-## 21. 유지보수 가이드
+## 14. 유지보수 가이드
 
-### 21.1 정기 작업
+### 14.1 정기 작업
 
 #### 매주
 ```
@@ -1720,21 +1396,19 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
   - POST /api/admin/trash/cleanup 호출
   - 또는 관리자 대시보드에서 "30일 지난 항목 정리" 버튼
 □ 통계 확인
-□ 에러 로그 검토
 ```
 
 #### 매월
 ```
 □ 데이터베이스 백업 (CSV 내보내기)
-  - curl https://ai114.xyz/api/export/tasks > backup_YYYYMMDD.csv
+  - curl https://app.pages.dev/api/export/tasks > backup_YYYYMMDD.csv
 □ 시드 데이터 업데이트 (새 AI 도구 추가)
 □ 의존성 업데이트 검토
   - npm outdated
   - npm update
-□ SSL 인증서 만료일 확인
 ```
 
-### 21.2 기능 추가 시 체크리스트
+### 14.2 기능 추가 시 체크리스트
 
 ```
 □ 데이터베이스 스키마 변경 필요 여부
@@ -1748,24 +1422,24 @@ const normalizedScore = Math.min(100, Math.round(item.score * 2));
 □ 문서 업데이트
 ```
 
-### 21.3 AI 도구 추가 절차
+### 14.3 AI 도구 추가 절차
 
 ```bash
 # 1. seed_tools.sql 수정
 # INSERT OR REPLACE INTO ai_tools (...) VALUES (...);
 
 # 2. 프로덕션 적용
-npx wrangler d1 execute ai-coaching-db --remote --file=./seed_tools.sql
+npx wrangler d1 execute app-db --remote --file=./seed_tools.sql
 
 # 3. 확인
-curl https://ai114.xyz/api/tools | jq '.data | length'
+curl https://app.pages.dev/api/tools | jq '.data | length'
 ```
 
 ---
 
-## 22. 코드 스니펫 라이브러리
+## 15. 코드 스니펫 라이브러리
 
-### 22.1 소프트 삭제 API
+### 15.1 소프트 삭제 API
 
 ```typescript
 // 소프트 삭제
@@ -1835,7 +1509,7 @@ app.post('/api/admin/trash/cleanup', async (c) => {
 });
 ```
 
-### 22.2 프론트엔드 삭제 함수
+### 15.2 프론트엔드 삭제 함수
 
 ```javascript
 // 삭제 함수
@@ -1902,16 +1576,53 @@ async function permanentDeleteTask(taskId, taskName) {
 }
 ```
 
-### 22.3 삭제 버튼 HTML (⚠️ 반드시 텍스트 포함)
+### 15.3 삭제 버튼 HTML
 
 ```javascript
+// ⚠️ 반드시 텍스트 포함!
 `<button onclick="deleteTask('${task.id}', '${task.name}')" 
    class="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200">
   <i class="fas fa-trash-alt mr-1"></i>삭제
 </button>`
 ```
 
-### 22.4 통계 쿼리 패턴
+### 15.4 인포 아이콘 + 툴팁
+
+```html
+<span class="relative inline-block ml-2 group cursor-help">
+  <i class="fas fa-info-circle text-gray-400 text-sm hover:text-purple-600 transition"></i>
+  <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-3 
+              bg-gray-800 text-white text-xs rounded-lg shadow-lg 
+              opacity-0 invisible group-hover:opacity-100 group-hover:visible 
+              transition-all duration-200 w-72 z-50">
+    <div class="font-bold mb-2 text-purple-300">추천 점수 안내</div>
+    <ul class="space-y-1 text-gray-200">
+      <li>• <strong>100점 만점</strong> 기준으로 산정</li>
+      <li>• 업무 키워드 일치도 (40%)</li>
+      <li>• 도구 평점 및 인기도 (30%)</li>
+      <li>• 사용 난이도/접근성 (20%)</li>
+      <li>• 가격 접근성 (10%)</li>
+    </ul>
+    <div class="mt-2 pt-2 border-t border-gray-600 text-gray-300">
+      점수가 높을수록 업무에 적합합니다.
+    </div>
+    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 
+                border-8 border-transparent border-t-gray-800"></div>
+  </div>
+</span>
+```
+
+### 15.5 점수 표시
+
+```javascript
+`<div class="text-right">
+  <p class="text-sm text-gray-500">추천점수</p>
+  <p class="text-xl font-bold text-purple-600">${Math.min(100, Math.round(item.score * 2))}점</p>
+  <p class="text-xs text-gray-400">(100점 만점)</p>
+</div>`
+```
+
+### 15.6 통계 쿼리
 
 ```sql
 -- 전체 통계 (삭제된 항목 제외)
@@ -1944,18 +1655,16 @@ ORDER BY date;
 
 ---
 
-# Part 10: 부록
+## 16. 최종 점검 체크리스트
 
-## 부록 A: 최종 점검 체크리스트 (Start-to-Launch Readiness)
-
-### A.1 개발 완료 전 필수 확인 ✅
+### 개발 완료 전 필수 확인 ✅
 
 #### 데이터베이스
 ```
 □ 모든 테이블에 deleted_at 컬럼 있음
 □ deleted_at 인덱스 생성됨
 □ 모든 조회 쿼리에 deleted_at IS NULL 조건 있음
-□ 시드 데이터 적용됨 (38개 AI 도구)
+□ 시드 데이터 적용됨
 ```
 
 #### API
@@ -2007,255 +1716,32 @@ ORDER BY date;
 □ 새 배포 URL로 테스트 (캐시 우회)
 ```
 
-### A.2 배포 전 체크리스트
-
-```
-□ Git에 모든 변경사항 커밋됨
-□ 빌드 성공 (npm run build)
-□ 로컬 테스트 통과
-□ 환경 변수 설정 완료
-□ 마이그레이션 프로덕션 적용
-□ 시드 데이터 프로덕션 적용
-```
-
-### A.3 배포 후 체크리스트
-
-```
-□ 새 배포 URL에서 모든 페이지 로드 확인
-□ API 응답 정상 확인
-□ 삭제 버튼 표시 확인 (⚠️ 중요)
-□ 점수 표시 및 툴팁 확인
-□ 휴지통 기능 확인
-□ 프로덕션 도메인에서 확인 (캐시 우회)
-```
-
----
-
-## 부록 B: API 스펙 템플릿 (Skeleton)
-
-### B.1 OpenAPI 스펙 템플릿
-
-```yaml
-openapi: 3.0.3
-info:
-  title: AI 코칭 가이드 API
-  version: 1.0.0
-  description: AI 코칭 가이드 웹앱 API 명세
-
-servers:
-  - url: https://ai114.xyz
-    description: 프로덕션 서버
-  - url: https://ai-coaching-guide.pages.dev
-    description: Cloudflare Pages
-
-paths:
-  /api/tasks:
-    post:
-      summary: 업무 등록 및 AI 분석
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTaskRequest'
-      responses:
-        '200':
-          description: 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskResponse'
-
-  /api/tasks/{id}:
-    get:
-      summary: 특정 업무 조회
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 성공
-    
-    delete:
-      summary: 소프트 삭제 (휴지통 이동)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 휴지통으로 이동됨
-
-  /api/tasks/{id}/restore:
-    post:
-      summary: 휴지통에서 복원
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: 복원됨
-
-components:
-  schemas:
-    CreateTaskRequest:
-      type: object
-      required:
-        - organization
-        - department
-        - name
-        - job_description
-        - repeat_cycle
-        - automation_request
-        - email
-      properties:
-        organization:
-          type: string
-          description: 소속/조직
-        department:
-          type: string
-          description: 부서
-        name:
-          type: string
-          description: 이름
-        job_description:
-          type: string
-          description: 업무 설명
-        repeat_cycle:
-          type: string
-          description: 반복 주기
-        automation_request:
-          type: string
-          description: 자동화 요청사항
-        email:
-          type: string
-          format: email
-          description: 이메일
-        estimated_hours:
-          type: number
-          default: 1
-          description: 예상 소요시간
-
-    TaskResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          type: object
-          properties:
-            task_id:
-              type: string
-            recommendation:
-              type: object
-```
-
----
-
-## 부록 C: 테스트 매트릭스 템플릿
-
-### C.1 기능 테스트 매트릭스
-
-| 기능 | 테스트 케이스 | 예상 결과 | 통과 여부 | 비고 |
-|------|-------------|----------|----------|------|
-| 업무 등록 | 모든 필수 필드 입력 후 제출 | 성공, 보고서 페이지로 이동 | □ | |
-| 업무 등록 | 필수 필드 누락 후 제출 | 에러 메시지 표시 | □ | |
-| AI 분석 | 업무 설명 입력 후 분석 | TOP 5 도구 추천 | □ | |
-| 점수 표시 | 추천 도구 목록 확인 | XX점 (100점 만점) 형식 | □ | |
-| 인포 아이콘 | 아이콘 호버 | 툴팁 표시 | □ | |
-| 소프트 삭제 | 삭제 버튼 클릭 | 휴지통으로 이동 | □ | |
-| 복원 | 휴지통에서 복원 버튼 클릭 | 일반 목록으로 복원 | □ | |
-| 영구 삭제 | 영구삭제 버튼 클릭 | 데이터 완전 삭제 | □ | |
-
-### C.2 UI 테스트 매트릭스
-
-| 요소 | 테스트 항목 | 예상 결과 | 통과 여부 |
-|------|-----------|----------|----------|
-| 삭제 버튼 | 텍스트 포함 여부 | "삭제" 텍스트 표시 | □ |
-| 삭제 버튼 | 색상 | 빨간색 배경 (bg-red-100) | □ |
-| 삭제 버튼 | 호버 효과 | 배경색 변화 | □ |
-| 점수 | 형식 | XX점 (100점 만점) | □ |
-| 인포 아이콘 | 존재 여부 | 제목 옆에 표시 | □ |
-| 툴팁 | 표시 조건 | 호버 시 표시 | □ |
-| 툴팁 | 내용 | 점수 산정 기준 포함 | □ |
-
----
-
-## 부록 D: 용어집 (Glossary)
-
-| 용어 | 정의 |
-|------|------|
-| **소프트 삭제 (Soft Delete)** | 데이터를 실제로 삭제하지 않고 `deleted_at` 컬럼에 삭제 시각을 기록하는 방식 |
-| **하드 삭제 (Hard Delete)** | 데이터를 데이터베이스에서 완전히 삭제하는 방식 |
-| **휴지통 (Trash)** | 소프트 삭제된 데이터를 임시 보관하는 공간 |
-| **D1 Database** | Cloudflare의 서버리스 SQLite 데이터베이스 |
-| **Hono** | Cloudflare Workers에 최적화된 경량 웹 프레임워크 |
-| **Wrangler** | Cloudflare Workers/Pages 개발 및 배포 CLI 도구 |
-| **마이그레이션 (Migration)** | 데이터베이스 스키마 변경을 관리하는 파일/절차 |
-| **시드 데이터 (Seed Data)** | 초기 데이터베이스에 삽입하는 기본 데이터 |
-| **Gemini API** | Google의 생성형 AI API (2.5 Flash 버전 사용) |
-| **폴백 (Fallback)** | 주 기능 실패 시 대체 동작 |
-| **RBAC** | Role-Based Access Control (역할 기반 접근 제어) |
-| **인포 아이콘** | 추가 정보를 제공하는 ℹ️ 아이콘 |
-| **툴팁 (Tooltip)** | 마우스 호버 시 표시되는 정보 말풍선 |
-
----
-
-## 부록 E: 프로젝트 URL 및 참조 정보
-
-### E.1 프로덕션 URL
-
-| 항목 | URL | 상태 |
-|------|-----|------|
-| 프로덕션 도메인 | https://ai114.xyz | ✅ 활성 |
-| 관리자 대시보드 | https://ai114.xyz/coach | ✅ 활성 |
-| 개발 가이드 PDF | https://ai114.xyz/docs/app-development-guide.html | ✅ 활성 |
-| Cloudflare Pages | https://ai-coaching-guide.pages.dev | ✅ 활성 |
-
-### E.2 개발 참조
-
-| 항목 | 경로/정보 |
-|------|----------|
-| 프로젝트 디렉토리 | `/home/user/webapp/` |
-| 메인 소스 파일 | `/home/user/webapp/src/index.tsx` |
-| 개발 가이드 문서 | `/home/user/webapp/docs/APP_DEVELOPMENT_GUIDE.md` |
-| Wrangler 설정 | `/home/user/webapp/wrangler.jsonc` |
-| D1 Database ID | `7881e363-a4d4-4b6c-8b40-7fb9a319d284` |
-| Database Name | `ai-coaching-db` |
-| Cloudflare Project | `ai-coaching-guide` |
-
-### E.3 관리자 인증 정보
-
-- **관리자 비밀번호**: `coach2026!`
-- **접근 경로**: `/coach`
-
 ---
 
 ## 문서 정보
 
-| 항목 | 내용 |
-|------|------|
-| **문서 버전** | 3.0 |
-| **최종 수정일** | 2026-01-19 |
-| **작성자** | AI 코칭 가이드 개발팀 |
-| **참조 프로젝트** | ai-coaching-guide (ai114.xyz) |
+**문서 버전**: 2.0  
+**최종 수정일**: 2026-01-19  
+**작성자**: AI 코칭 가이드 개발팀  
+**참조 프로젝트**: ai-coaching-guide (ai114.xyz)
 
 ### 변경 이력
 
 | 버전 | 날짜 | 변경 내용 |
 |------|------|----------|
 | 1.0 | 2026-01-18 | 초기 버전 |
-| 2.0 | 2026-01-19 | 실제 발생 문제 및 해결책 추가, 점수 시스템 설계, 인포 아이콘+툴팁 패턴 |
-| 3.0 | 2026-01-19 | 포괄적 End-to-End 매뉴얼로 확장, 프로젝트 범위, 위험 관리, CI/CD, 인수 기준, API 스펙 템플릿, 테스트 매트릭스, 용어집 추가 |
+| 2.0 | 2026-01-19 | 실제 발생 문제 및 해결책 추가, 점수 시스템 설계, 인포 아이콘+툴팁 패턴, 코드 스니펫 확장 |
 
 ---
 
-**© 2026 AI공부방 | 코치: 디마불사 (디지털 마케팅 프로 컨설턴트, AI 활용 전문코치)**
+## 부록: 프로젝트 URL 정보
+
+| 항목 | URL |
+|------|-----|
+| 프로덕션 | https://ai114.xyz |
+| 관리자 | https://ai114.xyz/coach |
+| 개발 가이드 PDF | https://ai114.xyz/docs/app-development-guide.html |
+| Cloudflare Pages | https://ai-coaching-guide.pages.dev |
+| GitHub | (설정된 경우 표시) |
+
+**관리자 비밀번호**: 환경 변수 또는 별도 문서 참조
