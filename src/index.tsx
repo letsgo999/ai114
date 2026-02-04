@@ -277,24 +277,35 @@ app.post('/api/tasks', async (c) => {
           recommendation
         )
       } catch (aiError) {
-        console.error('Gemini API error, using fallback:', aiError)
-        // Gemini API 실패 시 폴백 코칭 사용
+        console.error('Gemini API error, using category-specific fallback:', aiError)
+        // Gemini API 실패 시 카테고리별 특화 폴백 코칭 사용
         aiCoaching = generateFallbackCoaching(
           {
             name: body.name,
+            organization: body.organization,
+            department: body.department,
             job_description: body.job_description,
-            estimated_hours: body.estimated_hours || 4
+            repeat_cycle: body.repeat_cycle,
+            automation_request: body.automation_request,
+            estimated_hours: body.estimated_hours || 4,
+            current_tools: body.current_tools || null
           },
           recommendation
         )
       }
     } else {
-      // API 키가 없으면 폴백 코칭 사용
+      // API 키가 없으면 카테고리별 특화 폴백 코칭 사용
+      console.log('No Gemini API key, using category-specific fallback for:', recommendation.category)
       aiCoaching = generateFallbackCoaching(
         {
           name: body.name,
+          organization: body.organization,
+          department: body.department,
           job_description: body.job_description,
-          estimated_hours: body.estimated_hours || 4
+          repeat_cycle: body.repeat_cycle,
+          automation_request: body.automation_request,
+          estimated_hours: body.estimated_hours || 4,
+          current_tools: body.current_tools || null
         },
         recommendation
       )

@@ -5,6 +5,7 @@
 
 import { AITool } from './types';
 import { RecommendationResult, RecommendedTool } from './recommendation';
+import { generateCategoryFallbackCoaching, AVAILABLE_CATEGORIES } from './fallback-templates';
 
 // Gemini API 응답 타입
 interface GeminiResponse {
@@ -238,85 +239,55 @@ export async function generateAICoaching(
   return parseJSONResponse(response);
 }
 
-// 간단한 코칭 코멘트 생성 (폴백용)
+// =============================================
+// 폴백 코칭 코멘트 생성 (카테고리별 특화 템플릿 사용)
+// =============================================
+
+/**
+ * 폴백 코칭 생성 - 카테고리별 특화 템플릿 활용
+ * 
+ * Gemini API 실패 시 또는 API 키가 없을 때 호출됨
+ * 기존의 기본 3단계 템플릿 대신 11개 카테고리별 상세 워크플로우 제공
+ * 
+ * @param taskInfo 사용자 업무 정보
+ * @param recommendation AI 도구 추천 결과
+ * @returns 카테고리에 맞는 상세 AI 코칭 결과
+ */
 export function generateFallbackCoaching(
   taskInfo: {
     name: string;
     job_description: string;
     estimated_hours: number;
+    // 추가 정보 (선택적)
+    organization?: string;
+    department?: string;
+    repeat_cycle?: string;
+    automation_request?: string;
+    current_tools?: string | null;
   },
   recommendation: RecommendationResult
 ): AICoachingResult {
-  const topTool = recommendation.recommended_tools[0]?.tool;
-  const secondTool = recommendation.recommended_tools[1]?.tool;
-  const thirdTool = recommendation.recommended_tools[2]?.tool;
-
-  return {
-    summary: `${taskInfo.name}님의 "${taskInfo.job_description}" 업무는 ${recommendation.category} 카테고리로 분류되며, AI 도구를 활용하면 약 ${recommendation.time_saving.percentage}%의 시간 절감이 가능합니다.`,
-    workflow: [
-      {
-        step_number: 1,
-        title: '업무 분석 및 계획 수립',
-        tool_name: topTool?.name || 'ChatGPT',
-        tool_url: topTool?.website_url || 'https://chat.openai.com',
-        specific_feature: '대화형 AI 어시스턴트',
-        action_items: [
-          '현재 업무 프로세스 정리',
-          '자동화 가능한 부분 식별',
-          'AI 도구 활용 계획 수립'
-        ],
-        expected_output: '업무 자동화 계획서',
-        time_estimate: '10분',
-        tips: '구체적인 업무 내용과 원하는 결과물을 명확히 설명하세요.'
-      },
-      {
-        step_number: 2,
-        title: '핵심 업무 자동화',
-        tool_name: secondTool?.name || topTool?.name || 'AI 도구',
-        tool_url: secondTool?.website_url || topTool?.website_url || '',
-        specific_feature: '자동화 기능',
-        action_items: [
-          '도구 계정 생성 및 설정',
-          '업무 템플릿 생성',
-          '자동화 워크플로우 구성'
-        ],
-        expected_output: '자동화된 업무 프로세스',
-        time_estimate: '20분',
-        tips: '처음에는 간단한 작업부터 자동화를 시작하세요.'
-      },
-      {
-        step_number: 3,
-        title: '결과물 검토 및 최적화',
-        tool_name: thirdTool?.name || topTool?.name || 'AI 도구',
-        tool_url: thirdTool?.website_url || topTool?.website_url || '',
-        specific_feature: '검토 및 편집 기능',
-        action_items: [
-          '생성된 결과물 검토',
-          '필요시 수정 및 보완',
-          '최종 결과물 저장'
-        ],
-        expected_output: '완성된 업무 결과물',
-        time_estimate: '10분',
-        tips: 'AI 결과물은 항상 한 번 더 검토하는 습관을 들이세요.'
-      }
-    ],
-    coaching_tips: [
-      '처음에는 하나의 도구에 집중하여 충분히 익숙해진 후 다른 도구로 확장하세요.',
-      '반복되는 작업은 템플릿화하여 재사용하면 더 큰 시간 절감 효과를 얻을 수 있습니다.',
-      'AI 도구는 보조 수단입니다. 최종 검토는 항상 직접 수행하세요.'
-    ],
-    time_analysis: {
-      before: `현재 ${taskInfo.estimated_hours}시간 소요`,
-      after: `자동화 후 ${recommendation.time_saving.new_hours}시간 소요 예상`,
-      efficiency_gain: `약 ${recommendation.time_saving.saved_hours}시간(${recommendation.time_saving.percentage}%)의 시간을 절감할 수 있습니다.`
+  // 카테고리별 특화 폴백 템플릿 사용
+  // fallback-templates.ts의 generateCategoryFallbackCoaching 호출
+  return generateCategoryFallbackCoaching(
+    {
+      name: taskInfo.name,
+      organization: taskInfo.organization || '',
+      department: taskInfo.department || '',
+      job_description: taskInfo.job_description,
+      repeat_cycle: taskInfo.repeat_cycle || '',
+      automation_request: taskInfo.automation_request || '',
+      estimated_hours: taskInfo.estimated_hours,
+      current_tools: taskInfo.current_tools || null
     },
-    learning_roadmap: recommendation.recommended_tools.slice(0, 3).map((rt, idx) => ({
-      priority: idx + 1,
-      tool_name: rt.tool.name,
-      reason: rt.reason,
-      learning_resources: `${rt.tool.name} 공식 문서 및 YouTube 튜토리얼`,
-      estimated_learning_time: rt.tool.difficulty === 'beginner' ? '30분' : rt.tool.difficulty === 'intermediate' ? '1시간' : '2시간'
-    })),
-    conclusion: `${taskInfo.name}님, 추천드린 AI 도구들을 활용하시면 "${taskInfo.job_description}" 업무를 훨씬 효율적으로 처리하실 수 있습니다. 먼저 ${topTool?.name || '첫 번째 추천 도구'}부터 시작해 보시고, 궁금한 점이 있으시면 언제든 문의해 주세요. 화이팅!`
-  };
+    recommendation
+  );
+}
+
+/**
+ * 지원하는 카테고리 목록 반환
+ * UI에서 카테고리 선택 시 사용 가능
+ */
+export function getSupportedCategories(): string[] {
+  return AVAILABLE_CATEGORIES;
 }
