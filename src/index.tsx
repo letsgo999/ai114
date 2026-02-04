@@ -7,7 +7,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { Bindings, Task, AITool, Comment, CreateTaskRequest, TaskWithRecommendation } from './lib/types'
-import { recommendTools, extractKeywords } from './lib/recommendation'
+import { recommendTools, extractKeywords, ClarificationHint } from './lib/recommendation'
 import { generateAICoaching, generateAICoachingWithOpenAI, generateFallbackCoaching, AICoachingResult } from './lib/gemini'
 import { analyzeForClarification, applyClarificationChoice, ClarificationOption } from './lib/clarification'
 import { selectAIEngine, AIEngineType, ENGINE_OPTIONS } from './lib/ai-engine-selector'
@@ -299,7 +299,10 @@ app.post('/api/clarify/apply', async (c) => {
 // POST /api/tasks - 업무 등록 및 AI 추천 + AI 코칭 코멘트 생성
 app.post('/api/tasks', async (c) => {
   try {
-    const body = await c.req.json<CreateTaskRequest & { ai_engine?: AIEngineType }>()
+    const body = await c.req.json<CreateTaskRequest & { 
+      ai_engine?: AIEngineType;
+      clarification_hint?: ClarificationHint;  // 명확화 결과 추가
+    }>()
     
     // 유효성 검사
     if (!body.organization || !body.department || !body.name || 
@@ -312,12 +315,20 @@ app.post('/api/tasks', async (c) => {
       'SELECT * FROM ai_tools WHERE is_active = 1'
     ).all<AITool>()
     
-    // AI 추천 생성 (키워드 매칭 기반)
+    // 명확화 힌트 로깅
+    if (body.clarification_hint) {
+      console.log('=== 명확화 힌트 적용 ===')
+      console.log('카테고리 힌트:', body.clarification_hint.category_hint)
+      console.log('추가 키워드:', body.clarification_hint.additional_keywords)
+    }
+    
+    // AI 추천 생성 (키워드 매칭 기반 + 명확화 힌트)
     const recommendation = recommendTools(
       tools as AITool[],
       body.job_description,
       body.automation_request,
-      body.estimated_hours || 4
+      body.estimated_hours || 4,
+      body.clarification_hint  // 명확화 힌트 전달
     )
     
     // AI 엔진 선택 옵션 (기본값: auto)
@@ -1865,11 +1876,17 @@ function renderSubmitPage(): string {
         ai_engine: aiEngine  // AI 엔진 선택 추가
       };
       
-      // 명확화 선택이 있으면 적용
+      // 명확화 선택이 있으면 적용 (향상된 요청사항 + 추천 엔진 힌트)
       if (enhancedData) {
         data.automation_request = enhancedData.enhanced_automation_request;
-        data.additional_keywords = enhancedData.additional_keywords;
-        data.suggested_category = enhancedData.suggested_category;
+        
+        // clarification_hint 객체 추가 (추천 엔진에 전달)
+        data.clarification_hint = {
+          category_hint: enhancedData.suggested_category,
+          additional_keywords: enhancedData.additional_keywords || []
+        };
+        
+        console.log('명확화 힌트 전달:', data.clarification_hint);
       }
       
       // 유효성 검사

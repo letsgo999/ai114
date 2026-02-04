@@ -118,7 +118,18 @@ const KEYWORD_MAPPINGS: Record<string, string[]> = {
   '그림': ['이미지', '생성', '그림'],
   '영상': ['영상', '비디오', '생성'],
   '비디오': ['비디오', '영상', '생성'],
-  '편집': ['편집', '영상', '이미지']
+  '편집': ['편집', '영상', '이미지'],
+  
+  // 오디오 편집 (신규 추가)
+  '음량': ['오디오', '음량', '볼륨', '편집', '정규화'],
+  '볼륨': ['오디오', '볼륨', '음량', '편집'],
+  '오디오': ['오디오', '음량', '편집', '사운드'],
+  '음향': ['오디오', '음향', '편집', '사운드'],
+  '소리': ['오디오', '소리', '편집', '사운드'],
+  '레벨': ['오디오', '레벨', '음량', '정규화'],
+  '정규화': ['오디오', '정규화', '음량', '레벨통일'],
+  '노이즈': ['오디오', '노이즈', '잡음제거', '편집'],
+  '잡음': ['오디오', '잡음', '노이즈', '편집']
 };
 
 // 업무 텍스트에서 키워드 추출
@@ -181,6 +192,8 @@ export function inferCategory(keywords: string[]): string {
     '회의': 0,
     '이미지생성': 0,
     '영상생성': 0,
+    '영상편집': 0,
+    '오디오편집': 0,
     '고객서비스': 0,
     '개발': 0,
     '리서치': 0
@@ -194,7 +207,9 @@ export function inferCategory(keywords: string[]): string {
     '일정관리': ['일정', '스케줄', '캘린더', '시간', '관리'],
     '회의': ['회의', '미팅', '녹음', '전사', '회의록'],
     '이미지생성': ['이미지', '생성', '그림', '아트', '일러스트'],
-    '영상생성': ['영상', '비디오', '편집', '효과'],
+    '영상생성': ['영상', '비디오', '효과'],
+    '영상편집': ['편집', '영상', '컷편집', '자막'],
+    '오디오편집': ['오디오', '음량', '볼륨', '정규화', '레벨', '음향', '소리', '노이즈', '잡음'],
     '고객서비스': ['고객', '서비스', 'CS', '문의', '응대', '챗봇'],
     '개발': ['코딩', '개발', '프로그래밍', '코드', '앱', '노코드'],
     '리서치': ['검색', '리서치', '조사', '트렌드', '정보']
@@ -257,25 +272,107 @@ export function generateReason(tool: AITool, matchedKeywords: string[]): string 
   return `${mainUseCase}에 유용한 도구입니다.`;
 }
 
-// 메인 추천 함수
+// 명확화 옵션 인터페이스
+export interface ClarificationHint {
+  category_hint?: string;  // 명확화에서 선택된 카테고리 힌트
+  additional_keywords?: string[];  // 명확화에서 추가된 키워드
+}
+
+// 카테고리 힌트와 도구 카테고리 매핑
+const CATEGORY_HINT_MAPPING: Record<string, string[]> = {
+  '오디오편집': ['영상편집', '영상생성'],  // 오디오편집 힌트 → 영상편집 도구 우선
+  '영상편집': ['영상편집', '영상생성'],
+  '영상생성': ['영상생성'],
+  '이미지생성': ['이미지생성'],
+  '문서작성': ['문서작성', '업무자동화'],
+  '데이터분석': ['데이터분석', '업무자동화'],
+  '마케팅': ['마케팅', '이미지생성'],
+  '업무자동화': ['업무자동화'],
+  '고객서비스': ['고객서비스', '업무자동화'],
+  '개발': ['개발', '업무자동화'],
+  '리서치': ['리서치', '데이터분석']
+};
+
+// 카테고리별 추천 도구 이름 (명시적 우선순위)
+const CATEGORY_PREFERRED_TOOLS: Record<string, string[]> = {
+  '오디오편집': ['CapCut', 'Adobe Podcast', 'Descript', 'Auphonic', 'DaVinci Resolve'],
+  '영상편집': ['CapCut', 'DaVinci Resolve', 'Vrew', 'Descript'],
+  '영상생성': ['Google VEO 3.1', 'OpenAI Sora 2', 'Runway ML', 'Pika Labs'],
+  '이미지생성': ['Nano Banana Pro', 'DALL-E 3', 'Midjourney', 'Stable Diffusion'],
+  '문서작성': ['ChatGPT', 'Gemini Gems', 'Notion AI', 'Microsoft Copilot'],
+  '데이터분석': ['ChatGPT', 'Claude', 'Julius AI', 'Microsoft Copilot'],
+  '마케팅': ['Gemini Gems', 'ChatGPT', 'Canva', 'Copy.ai'],
+  '업무자동화': ['Zapier', 'Make', 'n8n', 'Microsoft Power Automate']
+};
+
+// 메인 추천 함수 (명확화 힌트 지원)
 export function recommendTools(
   tools: AITool[],
   jobDescription: string,
   automationRequest: string,
-  estimatedHours: number = 4
+  estimatedHours: number = 4,
+  clarificationHint?: ClarificationHint  // 명확화 결과 추가
 ): RecommendationResult {
   // 1. 키워드 추출
   const combinedText = `${jobDescription} ${automationRequest}`;
-  const keywords = extractKeywords(combinedText);
+  let keywords = extractKeywords(combinedText);
   
-  // 2. 카테고리 추론
-  const category = inferCategory(keywords);
+  // 1-1. 명확화에서 추가된 키워드 병합
+  if (clarificationHint?.additional_keywords && clarificationHint.additional_keywords.length > 0) {
+    keywords = [...new Set([...keywords, ...clarificationHint.additional_keywords])];
+    console.log('명확화 키워드 추가:', clarificationHint.additional_keywords);
+  }
   
-  // 3. 각 도구별 점수 계산
+  // 2. 카테고리 추론 (명확화 힌트가 있으면 우선 사용)
+  let category = clarificationHint?.category_hint || inferCategory(keywords);
+  
+  // 카테고리 힌트가 제공된 경우 로그
+  if (clarificationHint?.category_hint) {
+    console.log('명확화 카테고리 힌트 적용:', clarificationHint.category_hint);
+  }
+  
+  // 3. 각 도구별 점수 계산 (명확화 가중치 적용)
+  const preferredTools = CATEGORY_PREFERRED_TOOLS[category] || [];
+  const relatedCategories = CATEGORY_HINT_MAPPING[category] || [];
+  
   const scoredTools: RecommendedTool[] = tools
     .filter(tool => tool.is_active)
     .map(tool => {
-      const { score, matchedKeywords } = calculateToolScore(tool, keywords);
+      let { score, matchedKeywords } = calculateToolScore(tool, keywords);
+      
+      // === 명확화 기반 가중치 적용 ===
+      
+      // 3-1. 명확화된 카테고리와 도구 카테고리가 일치하면 +30점
+      if (clarificationHint?.category_hint) {
+        if (relatedCategories.includes(tool.category)) {
+          score += 30;
+          console.log(`[가중치] ${tool.name}: 카테고리 일치 +30점 (${tool.category})`);
+        }
+      }
+      
+      // 3-2. 선호 도구 목록에 있으면 +40점 (순위에 따라 차등)
+      const preferredIndex = preferredTools.findIndex(
+        pt => tool.name.toLowerCase().includes(pt.toLowerCase()) || pt.toLowerCase().includes(tool.name.toLowerCase())
+      );
+      if (preferredIndex !== -1) {
+        const preferredBonus = 40 - (preferredIndex * 5); // 1위: +40, 2위: +35, 3위: +30...
+        score += Math.max(preferredBonus, 10);
+        console.log(`[가중치] ${tool.name}: 선호 도구 +${Math.max(preferredBonus, 10)}점 (순위 ${preferredIndex + 1})`);
+      }
+      
+      // 3-3. 명확화 키워드와 도구 키워드 추가 매칭 (+5점 per keyword)
+      if (clarificationHint?.additional_keywords) {
+        const toolKeywords = tool.keywords.split(',').map(k => k.trim().toLowerCase());
+        for (const addKeyword of clarificationHint.additional_keywords) {
+          if (toolKeywords.some(tk => tk.includes(addKeyword.toLowerCase()) || addKeyword.toLowerCase().includes(tk))) {
+            score += 5;
+            if (!matchedKeywords.includes(addKeyword)) {
+              matchedKeywords.push(addKeyword);
+            }
+          }
+        }
+      }
+      
       return {
         tool,
         score,
