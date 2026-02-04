@@ -473,17 +473,35 @@ app.post('/api/tasks', async (c) => {
     const taskId = generateId()
     
     // 전체 결과 (추천 + AI 코칭 + 엔진 정보)
+    // 비교 모드일 경우 comparison 객체에 gemini와 openai 결과 모두 저장
+    const comparisonData = (effectiveEngine === 'both' && aiCoaching && aiCoachingOpenAI) ? {
+      gemini: {
+        summary: aiCoaching.summary,
+        workflow: aiCoaching.workflow,
+        coaching_tips: aiCoaching.coaching_tips,
+        learning_roadmap: aiCoaching.learning_roadmap,
+        time_analysis: aiCoaching.time_analysis,
+        conclusion: aiCoaching.conclusion
+      },
+      openai: {
+        summary: aiCoachingOpenAI.summary,
+        workflow: aiCoachingOpenAI.workflow,
+        coaching_tips: aiCoachingOpenAI.coaching_tips,
+        learning_roadmap: aiCoachingOpenAI.learning_roadmap,
+        time_analysis: aiCoachingOpenAI.time_analysis,
+        conclusion: aiCoachingOpenAI.conclusion
+      }
+    } : null
+    
     const fullResult = {
       ...recommendation,
       ai_coaching: aiCoaching,
       ai_engine_info: {
         selected_engine: aiSource,
         engine_option: aiEngineOption,
-        auto_selection: engineSelection,
-        comparison: aiCoachingOpenAI ? {
-          openai_coaching: aiCoachingOpenAI
-        } : null
-      }
+        auto_selection: engineSelection
+      },
+      comparison: comparisonData
     }
     
     // 업무 저장
@@ -1922,6 +1940,29 @@ function renderReportPage(taskId: string): string {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .print-break { page-break-before: always; }
     }
+    /* 비교 모드 스타일 */
+    .comparison-workflow-step {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid;
+    }
+    .gemini-step { border-left-color: #7c3aed; }
+    .openai-step { border-left-color: #059669; }
+    .comparison-highlight {
+      animation: highlight-pulse 2s ease-in-out;
+    }
+    @keyframes highlight-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+      50% { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0.2); }
+    }
+    /* 모바일 탭 전환 */
+    @media (max-width: 767px) {
+      #gemini-panel.hidden-mobile, #openai-panel.hidden-mobile {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -2006,10 +2047,69 @@ function renderReportPage(taskId: string): string {
       </div>
     </div>
 
-    <!-- AI 코칭 분석 요약 -->
+    <!-- AI 엔진 비교 섹션 (둘 다 비교 모드일 때만 표시) -->
+    <div id="comparison-section" class="hidden mb-6">
+      <!-- 엔진 선택 탭 (모바일) -->
+      <div id="comparison-tabs" class="md:hidden bg-white rounded-xl shadow-lg p-2 mb-4 flex">
+        <button id="tab-gemini" onclick="switchComparisonTab('gemini')" class="flex-1 py-3 px-4 rounded-lg font-medium transition bg-purple-600 text-white">
+          <i class="fas fa-gem mr-1"></i>Gemini
+        </button>
+        <button id="tab-openai" onclick="switchComparisonTab('openai')" class="flex-1 py-3 px-4 rounded-lg font-medium transition bg-gray-100 text-gray-600">
+          <i class="fas fa-robot mr-1"></i>ChatGPT
+        </button>
+      </div>
+      
+      <!-- 좌우 비교 레이아웃 (데스크톱) -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <!-- Gemini 결과 -->
+        <div id="gemini-panel" class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl shadow-lg p-6 border-2 border-purple-200">
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-purple-200">
+            <div class="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
+              <i class="fas fa-gem text-white"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-purple-800">Google Gemini</h3>
+              <p class="text-xs text-purple-600">창의적 · 다양한 아이디어</p>
+            </div>
+          </div>
+          <div id="gemini-content">
+            <p class="text-gray-500">Gemini 결과 로딩 중...</p>
+          </div>
+        </div>
+        
+        <!-- OpenAI 결과 -->
+        <div id="openai-panel" class="bg-gradient-to-br from-green-50 to-teal-50 rounded-2xl shadow-lg p-6 border-2 border-green-200">
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-green-200">
+            <div class="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
+              <i class="fas fa-robot text-white"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-green-800">ChatGPT (GPT-4o-mini)</h3>
+              <p class="text-xs text-green-600">논리적 · 구조화된 분석</p>
+            </div>
+          </div>
+          <div id="openai-content">
+            <p class="text-gray-500">ChatGPT 결과 로딩 중...</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 비교 요약 -->
+      <div id="comparison-summary" class="bg-white rounded-2xl shadow-lg p-6 mt-4">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">
+          <i class="fas fa-balance-scale text-blue-600 mr-2"></i>비교 요약
+        </h3>
+        <div id="comparison-summary-content" class="grid md:grid-cols-3 gap-4">
+          <p class="text-gray-500">비교 분석 중...</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- AI 코칭 분석 요약 (단일 엔진 모드) -->
     <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl shadow-lg p-8 mb-6" id="ai-coaching-summary">
       <h2 class="text-xl font-bold text-gray-800 mb-6 pb-2 border-b border-purple-200">
         <i class="fas fa-robot text-purple-600 mr-2"></i>AI 코칭 분석
+        <span id="ai-engine-badge" class="ml-2 text-sm font-normal px-3 py-1 rounded-full bg-purple-100 text-purple-700"></span>
       </h2>
       <div id="coaching-summary-content">
         <p class="text-gray-500">분석 중...</p>
@@ -2066,6 +2166,7 @@ function renderReportPage(taskId: string): string {
   <script>
     const taskId = '${taskId}';
     let taskData = null;
+    let currentComparisonTab = 'gemini';
     
     // 데이터 로드
     async function loadReport() {
@@ -2084,6 +2185,272 @@ function renderReportPage(taskId: string): string {
         document.getElementById('loading').innerHTML = 
           '<div class="text-center"><i class="fas fa-exclamation-circle text-red-500 text-4xl mb-4"></i><p class="text-gray-600">' + error.message + '</p><a href="/" class="text-purple-600 mt-4 inline-block">홈으로 돌아가기</a></div>';
       }
+    }
+    
+    // 모바일 탭 전환
+    function switchComparisonTab(engine) {
+      currentComparisonTab = engine;
+      const geminiPanel = document.getElementById('gemini-panel');
+      const openaiPanel = document.getElementById('openai-panel');
+      const tabGemini = document.getElementById('tab-gemini');
+      const tabOpenai = document.getElementById('tab-openai');
+      
+      if (engine === 'gemini') {
+        geminiPanel.classList.remove('hidden-mobile');
+        openaiPanel.classList.add('hidden-mobile');
+        tabGemini.className = 'flex-1 py-3 px-4 rounded-lg font-medium transition bg-purple-600 text-white';
+        tabOpenai.className = 'flex-1 py-3 px-4 rounded-lg font-medium transition bg-gray-100 text-gray-600';
+      } else {
+        geminiPanel.classList.add('hidden-mobile');
+        openaiPanel.classList.remove('hidden-mobile');
+        tabGemini.className = 'flex-1 py-3 px-4 rounded-lg font-medium transition bg-gray-100 text-gray-600';
+        tabOpenai.className = 'flex-1 py-3 px-4 rounded-lg font-medium transition bg-green-600 text-white';
+      }
+    }
+    
+    // 워크플로우 HTML 생성 (비교용)
+    function renderComparisonWorkflow(workflow, engineType) {
+      if (!workflow || workflow.length === 0) return '<p class="text-gray-500">워크플로우 없음</p>';
+      
+      const stepClass = engineType === 'gemini' ? 'gemini-step' : 'openai-step';
+      const borderColor = engineType === 'gemini' ? 'purple' : 'green';
+      
+      return workflow.map((step, idx) => \`
+        <div class="comparison-workflow-step \${stepClass}">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 bg-\${borderColor}-600 text-white rounded-full flex items-center justify-center text-sm font-bold">\${step.step_number || idx + 1}</span>
+            <h4 class="font-bold text-gray-800 text-sm">\${step.title}</h4>
+          </div>
+          <div class="text-xs text-gray-600 space-y-1">
+            <p><i class="fas fa-tools text-\${borderColor}-500 mr-1"></i>\${step.tool_name}</p>
+            <p><i class="fas fa-clock text-\${borderColor}-500 mr-1"></i>\${step.time_estimate}</p>
+            <p class="text-gray-700">\${step.specific_feature}</p>
+          </div>
+        </div>
+      \`).join('');
+    }
+    
+    // 비교 모드 렌더링
+    function renderComparisonMode(recommendation) {
+      const comparison = recommendation.comparison;
+      if (!comparison || !comparison.gemini || !comparison.openai) return;
+      
+      const gemini = comparison.gemini;
+      const openai = comparison.openai;
+      
+      // 비교 섹션 표시
+      document.getElementById('comparison-section').classList.remove('hidden');
+      document.getElementById('ai-coaching-summary').classList.add('hidden');
+      document.getElementById('workflow-section').classList.add('hidden');
+      
+      // Gemini 패널
+      document.getElementById('gemini-content').innerHTML = \`
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-lightbulb mr-1"></i>분석 요약</h4>
+          <p class="text-sm text-gray-700 bg-white p-3 rounded-lg">\${gemini.summary || '요약 없음'}</p>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-tasks mr-1"></i>워크플로우 (\${gemini.workflow?.length || 0}단계)</h4>
+          <div class="max-h-64 overflow-y-auto">
+            \${renderComparisonWorkflow(gemini.workflow, 'gemini')}
+          </div>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-clock mr-1"></i>시간 분석</h4>
+          <div class="bg-white p-3 rounded-lg text-xs">
+            <p><strong>자동화 전:</strong> \${gemini.time_analysis?.before || '-'}</p>
+            <p><strong>자동화 후:</strong> \${gemini.time_analysis?.after || '-'}</p>
+            <p class="text-purple-600 font-medium"><strong>효율성:</strong> \${gemini.time_analysis?.efficiency_gain || '-'}</p>
+          </div>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-star mr-1"></i>코칭 팁</h4>
+          <ul class="text-xs space-y-1 bg-white p-3 rounded-lg">
+            \${(gemini.coaching_tips || []).map(tip => '<li class="flex items-start gap-1"><i class="fas fa-check text-purple-500 mt-0.5"></i><span>' + tip + '</span></li>').join('') || '<li class="text-gray-500">팁 없음</li>'}
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold text-purple-700 mb-2"><i class="fas fa-comment-dots mr-1"></i>종합 결론</h4>
+          <p class="text-xs text-gray-700 bg-white p-3 rounded-lg italic">\${gemini.conclusion || '결론 없음'}</p>
+        </div>
+      \`;
+      
+      // OpenAI 패널
+      document.getElementById('openai-content').innerHTML = \`
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-green-700 mb-2"><i class="fas fa-lightbulb mr-1"></i>분석 요약</h4>
+          <p class="text-sm text-gray-700 bg-white p-3 rounded-lg">\${openai.summary || '요약 없음'}</p>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-green-700 mb-2"><i class="fas fa-tasks mr-1"></i>워크플로우 (\${openai.workflow?.length || 0}단계)</h4>
+          <div class="max-h-64 overflow-y-auto">
+            \${renderComparisonWorkflow(openai.workflow, 'openai')}
+          </div>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-green-700 mb-2"><i class="fas fa-clock mr-1"></i>시간 분석</h4>
+          <div class="bg-white p-3 rounded-lg text-xs">
+            <p><strong>자동화 전:</strong> \${openai.time_analysis?.before || '-'}</p>
+            <p><strong>자동화 후:</strong> \${openai.time_analysis?.after || '-'}</p>
+            <p class="text-green-600 font-medium"><strong>효율성:</strong> \${openai.time_analysis?.efficiency_gain || '-'}</p>
+          </div>
+        </div>
+        <div class="mb-4">
+          <h4 class="text-sm font-bold text-green-700 mb-2"><i class="fas fa-star mr-1"></i>코칭 팁</h4>
+          <ul class="text-xs space-y-1 bg-white p-3 rounded-lg">
+            \${(openai.coaching_tips || []).map(tip => '<li class="flex items-start gap-1"><i class="fas fa-check text-green-500 mt-0.5"></i><span>' + tip + '</span></li>').join('') || '<li class="text-gray-500">팁 없음</li>'}
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold text-green-700 mb-2"><i class="fas fa-comment-dots mr-1"></i>종합 결론</h4>
+          <p class="text-xs text-gray-700 bg-white p-3 rounded-lg italic">\${openai.conclusion || '결론 없음'}</p>
+        </div>
+      \`;
+      
+      // 비교 요약
+      const geminiWorkflowCount = gemini.workflow ? gemini.workflow.length : 0;
+      const openaiWorkflowCount = openai.workflow ? openai.workflow.length : 0;
+      const geminiTipsCount = gemini.coaching_tips ? gemini.coaching_tips.length : 0;
+      const openaiTipsCount = openai.coaching_tips ? openai.coaching_tips.length : 0;
+      const geminiRoadmapCount = gemini.learning_roadmap ? gemini.learning_roadmap.length : 0;
+      const openaiRoadmapCount = openai.learning_roadmap ? openai.learning_roadmap.length : 0;
+      
+      document.getElementById('comparison-summary-content').innerHTML = \`
+        <div class="bg-purple-50 p-4 rounded-xl">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+              <i class="fas fa-gem text-white text-sm"></i>
+            </div>
+            <span class="font-bold text-purple-700">Google Gemini</span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">워크플로우</span>
+              <span class="font-bold text-purple-600">\${geminiWorkflowCount}단계</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">코칭 팁</span>
+              <span class="font-bold text-purple-600">\${geminiTipsCount}개</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">학습 로드맵</span>
+              <span class="font-bold text-purple-600">\${geminiRoadmapCount}개</span>
+            </div>
+          </div>
+        </div>
+        <div class="bg-green-50 p-4 rounded-xl">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+              <i class="fas fa-robot text-white text-sm"></i>
+            </div>
+            <span class="font-bold text-green-700">ChatGPT</span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">워크플로우</span>
+              <span class="font-bold text-green-600">\${openaiWorkflowCount}단계</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">코칭 팁</span>
+              <span class="font-bold text-green-600">\${openaiTipsCount}개</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">학습 로드맵</span>
+              <span class="font-bold text-green-600">\${openaiRoadmapCount}개</span>
+            </div>
+          </div>
+        </div>
+        <div class="bg-blue-50 p-4 rounded-xl">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <i class="fas fa-balance-scale text-white text-sm"></i>
+            </div>
+            <span class="font-bold text-blue-700">비교 결과</span>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-600">기본 사용 엔진</span>
+              <span class="font-bold text-blue-600">\${recommendation.ai_engine_info?.selected_engine === 'gemini' ? 'Gemini' : 'ChatGPT'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">워크플로우 차이</span>
+              <span class="font-bold \${geminiWorkflowCount > openaiWorkflowCount ? 'text-purple-600' : 'text-green-600'}">\${Math.abs(geminiWorkflowCount - openaiWorkflowCount)}단계</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2 pt-2 border-t border-blue-200">두 AI의 관점을 비교하여 최적의 방법을 선택하세요</p>
+          </div>
+        </div>
+      \`;
+      
+      // 단일 모드용 섹션들도 데이터로 채우기 (시간분석, 학습로드맵 등은 선택된 엔진 기준)
+      renderSingleModeContent(recommendation);
+    }
+    
+    // 단일 모드 콘텐츠 렌더링 (시간분석, 학습로드맵, 코칭팁)
+    function renderSingleModeContent(recommendation) {
+      const aiCoaching = recommendation.ai_coaching;
+      if (!aiCoaching) return;
+      
+      // 시간 분석
+      if (aiCoaching.time_analysis) {
+        document.getElementById('time-analysis-content').innerHTML = \`
+          <div class="bg-red-50 p-6 rounded-xl text-center">
+            <i class="fas fa-hourglass-start text-red-500 text-3xl mb-3"></i>
+            <p class="text-sm text-gray-500 mb-2">자동화 전</p>
+            <p class="text-lg font-bold text-red-600">\${aiCoaching.time_analysis.before}</p>
+          </div>
+          <div class="bg-green-50 p-6 rounded-xl text-center">
+            <i class="fas fa-hourglass-end text-green-500 text-3xl mb-3"></i>
+            <p class="text-sm text-gray-500 mb-2">자동화 후</p>
+            <p class="text-lg font-bold text-green-600">\${aiCoaching.time_analysis.after}</p>
+          </div>
+          <div class="bg-blue-50 p-6 rounded-xl text-center">
+            <i class="fas fa-chart-line text-blue-500 text-3xl mb-3"></i>
+            <p class="text-sm text-gray-500 mb-2">효율성 향상</p>
+            <p class="text-lg font-bold text-blue-600">\${aiCoaching.time_analysis.efficiency_gain}</p>
+          </div>
+        \`;
+      }
+      
+      // 학습 로드맵
+      if (aiCoaching.learning_roadmap && aiCoaching.learning_roadmap.length > 0) {
+        const roadmapHTML = aiCoaching.learning_roadmap.map(item => \`
+          <div class="bg-gray-50 rounded-xl p-5 flex items-start gap-4">
+            <div class="w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center flex-shrink-0 font-bold">
+              \${item.priority}
+            </div>
+            <div class="flex-1">
+              <h4 class="font-bold text-gray-800 mb-1">\${item.tool_name}</h4>
+              <p class="text-sm text-gray-600 mb-2">\${item.reason}</p>
+              <div class="flex flex-wrap gap-4 text-sm">
+                <span class="text-blue-600"><i class="fas fa-book mr-1"></i>\${item.learning_resources}</span>
+                <span class="text-green-600"><i class="fas fa-clock mr-1"></i>\${item.estimated_learning_time}</span>
+              </div>
+            </div>
+          </div>
+        \`).join('');
+        document.getElementById('learning-roadmap-content').innerHTML = roadmapHTML;
+      }
+      
+      // 코칭 팁 & 종합 의견
+      let tipsHTML = '';
+      if (aiCoaching.coaching_tips && aiCoaching.coaching_tips.length > 0) {
+        tipsHTML += '<div class="mb-6"><h3 class="text-lg font-bold text-gray-800 mb-3"><i class="fas fa-check-circle text-green-500 mr-2"></i>코칭 팁</h3><ul class="space-y-2">';
+        aiCoaching.coaching_tips.forEach(tip => {
+          tipsHTML += '<li class="flex items-start gap-2 bg-white p-3 rounded-lg"><i class="fas fa-lightbulb text-yellow-500 mt-1"></i><span class="text-gray-700">' + tip + '</span></li>';
+        });
+        tipsHTML += '</ul></div>';
+      }
+      
+      if (aiCoaching.conclusion) {
+        tipsHTML += \`
+          <div class="bg-white p-6 rounded-xl border-2 border-purple-200">
+            <h3 class="text-lg font-bold text-purple-700 mb-3"><i class="fas fa-medal mr-2"></i>종합 코멘트</h3>
+            <p class="text-gray-700 leading-relaxed">\${aiCoaching.conclusion}</p>
+            <p class="text-right text-sm text-purple-500 mt-4 font-medium">- 디마불사 코치 (AI 어시스턴트)</p>
+          </div>
+        \`;
+      }
+      document.getElementById('coaching-tips-content').innerHTML = tipsHTML || '<p class="text-gray-500">코칭 팁이 없습니다.</p>';
     }
     
     // 보고서 렌더링
@@ -2171,7 +2538,27 @@ function renderReportPage(taskId: string): string {
       
       document.getElementById('recommended-tools').innerHTML = toolsHTML;
       
-      // AI 코칭 결과 렌더링
+      // 비교 모드 확인
+      const hasComparison = recommendation.comparison && recommendation.comparison.gemini && recommendation.comparison.openai;
+      
+      // AI 엔진 정보 표시
+      const engineInfo = recommendation.ai_engine_info;
+      if (engineInfo) {
+        const engineBadge = document.getElementById('ai-engine-badge');
+        const engineNames = { 'gemini': 'Google Gemini', 'openai': 'ChatGPT', 'fallback': '기본 템플릿' };
+        const engineColors = { 'gemini': 'purple', 'openai': 'green', 'fallback': 'gray' };
+        const engine = engineInfo.selected_engine || 'fallback';
+        engineBadge.textContent = engineNames[engine] || engine;
+        engineBadge.className = 'ml-2 text-sm font-normal px-3 py-1 rounded-full bg-' + (engineColors[engine] || 'gray') + '-100 text-' + (engineColors[engine] || 'gray') + '-700';
+      }
+      
+      // 비교 모드일 경우 좌우 비교 렌더링
+      if (hasComparison) {
+        renderComparisonMode(recommendation);
+        return; // 비교 모드에서는 아래 단일 모드 렌더링 스킵
+      }
+      
+      // AI 코칭 결과 렌더링 (단일 엔진 모드)
       const aiCoaching = recommendation.ai_coaching;
       if (aiCoaching) {
         // 코칭 요약
