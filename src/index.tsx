@@ -10,6 +10,7 @@ import type { Bindings, Task, AITool, Comment, CreateTaskRequest, TaskWithRecomm
 import { recommendTools, extractKeywords } from './lib/recommendation'
 import { generateAICoaching, generateAICoachingWithOpenAI, generateFallbackCoaching, AICoachingResult } from './lib/gemini'
 import { analyzeForClarification, applyClarificationChoice, ClarificationOption } from './lib/clarification'
+import { selectAIEngine, AIEngineType, ENGINE_OPTIONS } from './lib/ai-engine-selector'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -298,7 +299,7 @@ app.post('/api/clarify/apply', async (c) => {
 // POST /api/tasks - 업무 등록 및 AI 추천 + AI 코칭 코멘트 생성
 app.post('/api/tasks', async (c) => {
   try {
-    const body = await c.req.json<CreateTaskRequest>()
+    const body = await c.req.json<CreateTaskRequest & { ai_engine?: AIEngineType }>()
     
     // 유효성 검사
     if (!body.organization || !body.department || !body.name || 
@@ -319,8 +320,12 @@ app.post('/api/tasks', async (c) => {
       body.estimated_hours || 4
     )
     
-    // AI 코칭 코멘트 생성: Gemini → OpenAI → 카테고리별 폴백
+    // AI 엔진 선택 옵션 (기본값: auto)
+    const aiEngineOption: AIEngineType = body.ai_engine || 'auto'
+    
+    // AI 코칭 코멘트 생성
     let aiCoaching: AICoachingResult
+    let aiCoachingOpenAI: AICoachingResult | null = null  // 'both' 옵션용
     const geminiApiKey = c.env.GEMINI_API_KEY
     const openaiApiKey = c.env.OPENAI_API_KEY
     
@@ -336,45 +341,130 @@ app.post('/api/tasks', async (c) => {
     }
     
     let aiSource = 'fallback' // 응답 출처 추적
+    let engineSelection = null // 자동 선택 정보
     
-    // 1단계: Gemini API 시도
-    if (geminiApiKey) {
-      try {
-        console.log('1단계: Gemini API 호출 시도...')
-        aiCoaching = await generateAICoaching(geminiApiKey, taskInfoForAI, recommendation)
-        aiSource = 'gemini'
-        console.log('✓ Gemini API 성공')
-      } catch (geminiError) {
-        console.error('✗ Gemini API 실패:', geminiError)
-        
-        // 2단계: OpenAI API 시도 (Gemini 실패 시)
-        if (openaiApiKey) {
-          try {
-            console.log('2단계: OpenAI API (gpt-4o-mini) 호출 시도...')
-            aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
-            aiSource = 'openai'
-            console.log('✓ OpenAI API 성공')
-          } catch (openaiError) {
-            console.error('✗ OpenAI API 실패:', openaiError)
-            // 3단계: 폴백으로 이동
-          }
+    // AI 엔진 자동 선택 (auto 모드일 때)
+    if (aiEngineOption === 'auto') {
+      engineSelection = selectAIEngine(
+        recommendation.category,
+        recommendation.keywords,
+        body.automation_request,
+        body.job_description
+      )
+      console.log(`AI 엔진 자동 선택: ${engineSelection.selected_engine} (신뢰도: ${engineSelection.confidence}%)`)
+      console.log(`선택 이유: ${engineSelection.reason}`)
+    }
+    
+    // 실제 사용할 엔진 결정
+    const effectiveEngine = aiEngineOption === 'auto' 
+      ? engineSelection?.selected_engine || 'gemini'
+      : aiEngineOption === 'both' ? 'both' : aiEngineOption
+    
+    // 'both' 옵션: 두 AI 모두 호출
+    if (effectiveEngine === 'both') {
+      console.log('=== 두 AI 엔진 모두 호출 (비교 모드) ===')
+      
+      // Gemini 호출
+      if (geminiApiKey) {
+        try {
+          console.log('Gemini API 호출 중...')
+          aiCoaching = await generateAICoaching(geminiApiKey, taskInfoForAI, recommendation)
+          aiSource = 'gemini'
+          console.log('✓ Gemini API 성공')
+        } catch (geminiError) {
+          console.error('✗ Gemini API 실패:', geminiError)
+          aiCoaching = generateFallbackCoaching(taskInfoForAI, recommendation)
+          aiSource = 'fallback_gemini'
+        }
+      } else {
+        aiCoaching = generateFallbackCoaching(taskInfoForAI, recommendation)
+        aiSource = 'fallback_gemini'
+      }
+      
+      // OpenAI 호출
+      if (openaiApiKey) {
+        try {
+          console.log('OpenAI API 호출 중...')
+          aiCoachingOpenAI = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
+          console.log('✓ OpenAI API 성공')
+        } catch (openaiError) {
+          console.error('✗ OpenAI API 실패:', openaiError)
+          aiCoachingOpenAI = null
         }
       }
-    } else if (openaiApiKey) {
-      // Gemini 키 없고 OpenAI 키만 있는 경우
-      try {
-        console.log('Gemini 키 없음, OpenAI API (gpt-4o-mini) 호출 시도...')
-        aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
-        aiSource = 'openai'
-        console.log('✓ OpenAI API 성공')
-      } catch (openaiError) {
-        console.error('✗ OpenAI API 실패:', openaiError)
+    }
+    // Gemini 우선 호출
+    else if (effectiveEngine === 'gemini') {
+      if (geminiApiKey) {
+        try {
+          console.log('Gemini API 호출 시도...')
+          aiCoaching = await generateAICoaching(geminiApiKey, taskInfoForAI, recommendation)
+          aiSource = 'gemini'
+          console.log('✓ Gemini API 성공')
+        } catch (geminiError) {
+          console.error('✗ Gemini API 실패:', geminiError)
+          // 폴백으로 OpenAI 시도
+          if (openaiApiKey) {
+            try {
+              console.log('폴백: OpenAI API 호출 시도...')
+              aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
+              aiSource = 'openai'
+              console.log('✓ OpenAI API 성공 (폴백)')
+            } catch (openaiError) {
+              console.error('✗ OpenAI API 실패:', openaiError)
+            }
+          }
+        }
+      } else if (openaiApiKey) {
+        // Gemini 키 없으면 OpenAI 시도
+        try {
+          console.log('Gemini 키 없음, OpenAI API 호출 시도...')
+          aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
+          aiSource = 'openai'
+          console.log('✓ OpenAI API 성공')
+        } catch (openaiError) {
+          console.error('✗ OpenAI API 실패:', openaiError)
+        }
+      }
+    }
+    // OpenAI 우선 호출
+    else if (effectiveEngine === 'openai') {
+      if (openaiApiKey) {
+        try {
+          console.log('OpenAI API 호출 시도...')
+          aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
+          aiSource = 'openai'
+          console.log('✓ OpenAI API 성공')
+        } catch (openaiError) {
+          console.error('✗ OpenAI API 실패:', openaiError)
+          // 폴백으로 Gemini 시도
+          if (geminiApiKey) {
+            try {
+              console.log('폴백: Gemini API 호출 시도...')
+              aiCoaching = await generateAICoaching(geminiApiKey, taskInfoForAI, recommendation)
+              aiSource = 'gemini'
+              console.log('✓ Gemini API 성공 (폴백)')
+            } catch (geminiError) {
+              console.error('✗ Gemini API 실패:', geminiError)
+            }
+          }
+        }
+      } else if (geminiApiKey) {
+        // OpenAI 키 없으면 Gemini 시도
+        try {
+          console.log('OpenAI 키 없음, Gemini API 호출 시도...')
+          aiCoaching = await generateAICoaching(geminiApiKey, taskInfoForAI, recommendation)
+          aiSource = 'gemini'
+          console.log('✓ Gemini API 성공')
+        } catch (geminiError) {
+          console.error('✗ Gemini API 실패:', geminiError)
+        }
       }
     }
     
-    // 3단계: 모든 API 실패 시 카테고리별 특화 폴백 사용
+    // 모든 API 실패 시 카테고리별 특화 폴백 사용
     if (aiSource === 'fallback') {
-      console.log('3단계: 카테고리별 특화 폴백 템플릿 사용')
+      console.log('카테고리별 특화 폴백 템플릿 사용')
       console.log(`자동화 요청사항 기반 카테고리 매칭: "${body.automation_request}" → ${recommendation.category}`)
       aiCoaching = generateFallbackCoaching(taskInfoForAI, recommendation)
     }
@@ -382,10 +472,18 @@ app.post('/api/tasks', async (c) => {
     const now = Date.now()
     const taskId = generateId()
     
-    // 전체 결과 (추천 + AI 코칭)
+    // 전체 결과 (추천 + AI 코칭 + 엔진 정보)
     const fullResult = {
       ...recommendation,
-      ai_coaching: aiCoaching
+      ai_coaching: aiCoaching,
+      ai_engine_info: {
+        selected_engine: aiSource,
+        engine_option: aiEngineOption,
+        auto_selection: engineSelection,
+        comparison: aiCoachingOpenAI ? {
+          openai_coaching: aiCoachingOpenAI
+        } : null
+      }
     }
     
     // 업무 저장
@@ -1501,6 +1599,56 @@ function renderSubmitPage(): string {
           </div>
         </div>
 
+        <!-- AI 엔진 선택 -->
+        <div class="mb-8">
+          <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b">
+            <i class="fas fa-brain text-purple-600 mr-2"></i>AI 코칭 엔진 선택
+          </h2>
+          <p class="text-sm text-gray-600 mb-4">분석에 사용할 AI 엔진을 선택하세요. 자동 선택 시 요청 내용에 맞는 최적의 엔진을 선택합니다.</p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label class="flex items-start p-4 border-2 border-purple-500 bg-purple-50 rounded-lg cursor-pointer hover:bg-purple-100 transition ai-engine-option">
+              <input type="radio" name="ai_engine" value="auto" checked class="mt-1 mr-3 text-purple-600">
+              <div>
+                <span class="font-medium text-gray-800">
+                  <i class="fas fa-magic text-purple-500 mr-1"></i>자동 선택 (추천)
+                </span>
+                <p class="text-xs text-gray-500 mt-1">요청 내용을 분석하여 최적의 AI 엔진을 자동으로 선택합니다</p>
+              </div>
+            </label>
+            
+            <label class="flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition ai-engine-option">
+              <input type="radio" name="ai_engine" value="gemini" class="mt-1 mr-3 text-purple-600">
+              <div>
+                <span class="font-medium text-gray-800">
+                  <i class="fas fa-star text-blue-500 mr-1"></i>Gemini 2.5 Flash
+                </span>
+                <p class="text-xs text-gray-500 mt-1">창의적인 콘텐츠, 마케팅, 아이디어 발굴에 강점</p>
+              </div>
+            </label>
+            
+            <label class="flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition ai-engine-option">
+              <input type="radio" name="ai_engine" value="openai" class="mt-1 mr-3 text-purple-600">
+              <div>
+                <span class="font-medium text-gray-800">
+                  <i class="fas fa-robot text-green-500 mr-1"></i>ChatGPT (GPT-4o-mini)
+                </span>
+                <p class="text-xs text-gray-500 mt-1">기술적 분석, 데이터 처리, 구조화된 워크플로우에 강점</p>
+              </div>
+            </label>
+            
+            <label class="flex items-start p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition ai-engine-option">
+              <input type="radio" name="ai_engine" value="both" class="mt-1 mr-3 text-purple-600">
+              <div>
+                <span class="font-medium text-gray-800">
+                  <i class="fas fa-balance-scale text-orange-500 mr-1"></i>둘 다 비교
+                </span>
+                <p class="text-xs text-gray-500 mt-1">두 AI의 응답을 모두 받아 비교합니다 (시간이 더 걸립니다)</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- 제출 버튼 -->
         <div class="flex justify-center gap-4">
           <button type="button" onclick="window.location.href='/'"
@@ -1661,11 +1809,31 @@ function renderSubmitPage(): string {
       checkClarityBtn.click(); // 다시 명확화 분석 실행
     });
     
+    // AI 엔진 선택 라디오 버튼 스타일링
+    const engineOptions = document.querySelectorAll('.ai-engine-option');
+    engineOptions.forEach(option => {
+      const radio = option.querySelector('input[type="radio"]');
+      radio.addEventListener('change', () => {
+        engineOptions.forEach(opt => {
+          opt.classList.remove('border-purple-500', 'bg-purple-50', 'border-2');
+          opt.classList.add('border-gray-200', 'border');
+        });
+        if (radio.checked) {
+          option.classList.remove('border-gray-200', 'border');
+          option.classList.add('border-purple-500', 'bg-purple-50', 'border-2');
+        }
+      });
+    });
+    
     // 폼 제출
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       
       const formData = new FormData(form);
+      
+      // AI 엔진 선택 값 가져오기
+      const aiEngine = formData.get('ai_engine') || 'auto';
+      
       let data = {
         organization: formData.get('organization'),
         department: formData.get('department'),
@@ -1675,7 +1843,8 @@ function renderSubmitPage(): string {
         repeat_cycle: formData.get('repeat_cycle'),
         automation_request: formData.get('automation_request'),
         current_tools: formData.get('current_tools') || '',
-        estimated_hours: parseFloat(formData.get('estimated_hours')) || 1
+        estimated_hours: parseFloat(formData.get('estimated_hours')) || 1,
+        ai_engine: aiEngine  // AI 엔진 선택 추가
       };
       
       // 명확화 선택이 있으면 적용
@@ -1690,6 +1859,14 @@ function renderSubmitPage(): string {
           !data.job_description || !data.repeat_cycle || !data.automation_request) {
         alert('필수 항목을 모두 입력해주세요.');
         return;
+      }
+      
+      // "둘 다 비교" 선택 시 로딩 메시지 변경
+      const loadingText = document.querySelector('#loading-modal p');
+      if (aiEngine === 'both') {
+        loadingText.textContent = '두 AI 엔진으로 분석 중입니다. 잠시만 기다려주세요...';
+      } else {
+        loadingText.textContent = 'AI가 업무를 분석하고 최적의 도구를 추천하고 있습니다';
       }
       
       loadingModal.classList.remove('hidden');
