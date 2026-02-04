@@ -7,8 +7,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { Bindings, Task, AITool, Comment, CreateTaskRequest, TaskWithRecommendation } from './lib/types'
-import { recommendTools } from './lib/recommendation'
+import { recommendTools, extractKeywords } from './lib/recommendation'
 import { generateAICoaching, generateAICoachingWithOpenAI, generateFallbackCoaching, AICoachingResult } from './lib/gemini'
+import { analyzeForClarification, applyClarificationChoice, ClarificationOption } from './lib/clarification'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -229,6 +230,68 @@ app.get('/api/tools/categories', async (c) => {
   } catch (error: any) {
     console.error('Error fetching categories:', error?.message || error)
     return c.json({ success: false, error: 'Failed to fetch categories: ' + (error?.message || String(error)) }, 500)
+  }
+})
+
+// =============================================
+// 명확화 질문 API
+// =============================================
+
+// POST /api/clarify - 요청사항 분석 및 명확화 질문 생성
+app.post('/api/clarify', async (c) => {
+  try {
+    const body = await c.req.json<{ job_description: string; automation_request: string }>()
+    
+    if (!body.job_description || !body.automation_request) {
+      return c.json({ success: false, error: '업무 설명과 자동화 요청이 필요합니다.' }, 400)
+    }
+    
+    // 명확화 분석 실행
+    const clarificationResult = analyzeForClarification(
+      body.job_description,
+      body.automation_request
+    )
+    
+    console.log(`명확화 분석: 모호성 점수 ${clarificationResult.ambiguity_score}, 질문 필요: ${clarificationResult.needs_clarification}`)
+    
+    return c.json({
+      success: true,
+      data: clarificationResult
+    })
+  } catch (error: any) {
+    console.error('Clarification error:', error?.message || error)
+    return c.json({ success: false, error: '명확화 분석 중 오류가 발생했습니다.' }, 500)
+  }
+})
+
+// POST /api/clarify/apply - 사용자 선택 적용
+app.post('/api/clarify/apply', async (c) => {
+  try {
+    const body = await c.req.json<{
+      job_description: string;
+      automation_request: string;
+      selected_option: ClarificationOption;
+    }>()
+    
+    if (!body.job_description || !body.automation_request || !body.selected_option) {
+      return c.json({ success: false, error: '필수 필드가 누락되었습니다.' }, 400)
+    }
+    
+    // 선택 적용
+    const enhanced = applyClarificationChoice(
+      { jobDescription: body.job_description, automationRequest: body.automation_request },
+      body.selected_option
+    )
+    
+    console.log(`명확화 선택 적용: "${body.selected_option.label}" → 키워드 추가: ${enhanced.additional_keywords.join(', ')}`)
+    
+    return c.json({
+      success: true,
+      data: enhanced
+    })
+  } catch (error: any) {
+    console.error('Apply clarification error:', error?.message || error)
+    return c.json({ success: false, error: '선택 적용 중 오류가 발생했습니다.' }, 500)
   }
 })
 
@@ -1381,10 +1444,52 @@ function renderSubmitPage(): string {
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 AI 자동화 요청사항 <span class="text-red-500">*</span>
               </label>
-              <textarea name="automation_request" required rows="4"
+              <textarea name="automation_request" id="automation_request" required rows="4"
                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="예: 전월 성과 모니터링 후 개선점 도출하여 차기 월에 게시물 운영 계획 수립을 템플릿으로 자동화하고 싶음"></textarea>
+              <button type="button" id="check-clarity-btn"
+                class="mt-2 text-sm text-purple-600 hover:text-purple-800 underline">
+                <i class="fas fa-question-circle mr-1"></i>요청사항이 잘 이해될지 확인하기
+              </button>
             </div>
+            
+            <!-- 명확화 질문 섹션 (동적으로 표시) -->
+            <div id="clarification-section" class="hidden">
+              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div class="flex items-start mb-3">
+                  <i class="fas fa-lightbulb text-yellow-500 mt-1 mr-2"></i>
+                  <div>
+                    <p class="font-medium text-yellow-800">더 정확한 분석을 위해 추가 정보가 필요합니다</p>
+                    <p class="text-sm text-yellow-700 mt-1" id="ambiguity-info"></p>
+                  </div>
+                </div>
+                <div id="clarification-questions" class="space-y-4">
+                  <!-- 질문들이 동적으로 추가됩니다 -->
+                </div>
+                <div class="mt-4 flex gap-2">
+                  <button type="button" id="skip-clarification-btn"
+                    class="text-sm text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-forward mr-1"></i>건너뛰고 분석하기
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 선택된 명확화 표시 -->
+            <div id="selected-clarification" class="hidden">
+              <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center">
+                    <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                    <span class="text-green-800 text-sm" id="selected-clarification-text"></span>
+                  </div>
+                  <button type="button" id="reset-clarification-btn" class="text-sm text-green-600 hover:text-green-800">
+                    <i class="fas fa-redo mr-1"></i>다시 선택
+                  </button>
+                </div>
+              </div>
+            </div>
+            
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-2">
                 현재 사용 중인 도구 (선택)
@@ -1424,12 +1529,144 @@ function renderSubmitPage(): string {
     const form = document.getElementById('task-form');
     const submitBtn = document.getElementById('submit-btn');
     const loadingModal = document.getElementById('loading-modal');
+    const checkClarityBtn = document.getElementById('check-clarity-btn');
+    const clarificationSection = document.getElementById('clarification-section');
+    const clarificationQuestions = document.getElementById('clarification-questions');
+    const ambiguityInfo = document.getElementById('ambiguity-info');
+    const selectedClarification = document.getElementById('selected-clarification');
+    const selectedClarificationText = document.getElementById('selected-clarification-text');
+    const skipClarificationBtn = document.getElementById('skip-clarification-btn');
+    const resetClarificationBtn = document.getElementById('reset-clarification-btn');
+    const automationRequestField = document.getElementById('automation_request');
     
+    // 선택된 명확화 옵션 저장
+    let selectedOption = null;
+    let enhancedData = null;
+    
+    // 명확화 확인 버튼 클릭
+    checkClarityBtn.addEventListener('click', async () => {
+      const jobDesc = form.querySelector('[name="job_description"]').value;
+      const autoReq = automationRequestField.value;
+      
+      if (!jobDesc || !autoReq) {
+        alert('업무 설명과 자동화 요청사항을 먼저 입력해주세요.');
+        return;
+      }
+      
+      checkClarityBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>분석 중...';
+      checkClarityBtn.disabled = true;
+      
+      try {
+        const response = await fetch('/api/clarify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_description: jobDesc,
+            automation_request: autoReq
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data.needs_clarification) {
+          showClarificationQuestions(result.data);
+        } else {
+          // 명확화 불필요
+          clarificationSection.classList.add('hidden');
+          selectedClarification.classList.add('hidden');
+          alert('요청사항이 명확합니다! 바로 분석 요청하세요.');
+        }
+      } catch (error) {
+        console.error('Clarification error:', error);
+        alert('분석 중 오류가 발생했습니다.');
+      } finally {
+        checkClarityBtn.innerHTML = '<i class="fas fa-question-circle mr-1"></i>요청사항이 잘 이해될지 확인하기';
+        checkClarityBtn.disabled = false;
+      }
+    });
+    
+    // 명확화 질문 표시
+    function showClarificationQuestions(data) {
+      clarificationSection.classList.remove('hidden');
+      selectedClarification.classList.add('hidden');
+      ambiguityInfo.textContent = '모호성 점수: ' + data.ambiguity_score + '점 / 감지된 모호성: ' + data.detected_ambiguities.join(', ');
+      
+      clarificationQuestions.innerHTML = data.questions.map((q, qIdx) => {
+        return '<div class="bg-white rounded-lg p-4 border border-yellow-100">' +
+          '<p class="font-medium text-gray-800 mb-3"><i class="fas fa-question-circle text-purple-500 mr-2"></i>' + q.question + '</p>' +
+          '<div class="grid grid-cols-1 gap-2">' +
+          q.options.map((opt, optIdx) => {
+            return '<button type="button" ' +
+              'class="clarification-option text-left p-3 border border-gray-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition text-sm" ' +
+              'data-question-id="' + q.id + '" ' +
+              'data-option-id="' + opt.id + '" ' +
+              'data-option=\\'' + JSON.stringify(opt).replace(/'/g, "\\\\'") + '\\'>' +
+              '<i class="fas fa-circle text-gray-300 mr-2"></i>' + opt.label +
+              '</button>';
+          }).join('') +
+          '</div>' +
+          '</div>';
+      }).join('');
+      
+      // 옵션 클릭 이벤트 바인딩
+      document.querySelectorAll('.clarification-option').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const optionData = JSON.parse(btn.dataset.option);
+          await applyClarificationChoice(optionData);
+        });
+      });
+    }
+    
+    // 명확화 선택 적용
+    async function applyClarificationChoice(option) {
+      try {
+        const response = await fetch('/api/clarify/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_description: form.querySelector('[name="job_description"]').value,
+            automation_request: automationRequestField.value,
+            selected_option: option
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          selectedOption = option;
+          enhancedData = result.data;
+          
+          // UI 업데이트
+          clarificationSection.classList.add('hidden');
+          selectedClarification.classList.remove('hidden');
+          selectedClarificationText.textContent = option.label;
+        }
+      } catch (error) {
+        console.error('Apply clarification error:', error);
+      }
+    }
+    
+    // 건너뛰기 버튼
+    skipClarificationBtn.addEventListener('click', () => {
+      clarificationSection.classList.add('hidden');
+      selectedOption = null;
+      enhancedData = null;
+    });
+    
+    // 다시 선택 버튼
+    resetClarificationBtn.addEventListener('click', () => {
+      selectedClarification.classList.add('hidden');
+      selectedOption = null;
+      enhancedData = null;
+      checkClarityBtn.click(); // 다시 명확화 분석 실행
+    });
+    
+    // 폼 제출
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       
       const formData = new FormData(form);
-      const data = {
+      let data = {
         organization: formData.get('organization'),
         department: formData.get('department'),
         name: formData.get('name'),
@@ -1440,6 +1677,13 @@ function renderSubmitPage(): string {
         current_tools: formData.get('current_tools') || '',
         estimated_hours: parseFloat(formData.get('estimated_hours')) || 1
       };
+      
+      // 명확화 선택이 있으면 적용
+      if (enhancedData) {
+        data.automation_request = enhancedData.enhanced_automation_request;
+        data.additional_keywords = enhancedData.additional_keywords;
+        data.suggested_category = enhancedData.suggested_category;
+      }
       
       // 유효성 검사
       if (!data.organization || !data.department || !data.name || !data.email ||
