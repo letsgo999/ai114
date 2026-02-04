@@ -137,7 +137,55 @@ const AMBIGUOUS_PATTERNS: Record<string, {
         { id: 'data_analyze', label: '데이터를 분석하고 인사이트를 얻고 싶어요', keywords: ['분석', '인사이트', '통계'], category_hint: '데이터분석' },
         { id: 'data_visualize', label: '차트/그래프로 시각화하고 싶어요', keywords: ['시각화', '차트', '그래프', '대시보드'], category_hint: '데이터분석' },
         { id: 'data_clean', label: '데이터를 정리/가공하고 싶어요', keywords: ['정리', '가공', '클렌징'], category_hint: '데이터분석' },
-        { id: 'data_collect', label: '데이터를 수집하고 싶어요', keywords: ['수집', '크롤링', '스크래핑'], category_hint: '리서치' }
+        { id: 'data_collect', label: '데이터를 수집하고 싶어요', keywords: ['수집', '크롤링', '스크래핑'], category_hint: '웹크롤링' }
+      ]
+    }
+  },
+
+  // 웹 크롤링/데이터 수집 관련 모호성 (신규)
+  'crawling_ambiguity': {
+    pattern: /크롤링|스크래핑|웹.*수집|사이트.*데이터|모니터링.*자동/i,
+    ambiguity_type: '웹 데이터 수집 방식 불명확',
+    questions: {
+      id: 'crawling_type',
+      question: '어떤 방식으로 웹 데이터를 수집/활용하고 싶으신가요?',
+      options: [
+        { id: 'crawl_browser', label: 'AI 브라우저로 간편하게 수집하고 싶어요', keywords: ['브라우저', 'AI어시스턴트', '자동화', '웹검색'], category_hint: '웹크롤링' },
+        { id: 'crawl_python', label: '파이썬 코드로 직접 크롤링하고 싶어요', keywords: ['파이썬', 'BeautifulSoup', '크롤링', '스크래핑'], category_hint: '다목적' },
+        { id: 'crawl_nocode', label: '노코드 도구로 간단히 수집하고 싶어요', keywords: ['노코드', '자동화', 'Listly'], category_hint: '업무자동화' },
+        { id: 'crawl_monitor', label: '웹사이트 변경사항을 모니터링하고 싶어요', keywords: ['모니터링', '알림', '변경감지'], category_hint: '업무자동화' }
+      ]
+    }
+  },
+
+  // 파이썬/코딩 관련 모호성 (신규)
+  'python_ambiguity': {
+    pattern: /파이썬|python|코딩|스크립트|코드.*자동|프로그래밍/i,
+    ambiguity_type: '파이썬 활용 목적 불명확',
+    questions: {
+      id: 'python_type',
+      question: '파이썬으로 어떤 작업을 하고 싶으신가요?',
+      options: [
+        { id: 'py_data', label: '데이터 분석/시각화 (Pandas, Matplotlib)', keywords: ['파이썬', 'Pandas', 'Matplotlib', '데이터분석', '시각화'], category_hint: '다목적' },
+        { id: 'py_crawl', label: '웹 크롤링/스크래핑 (BeautifulSoup, Selenium)', keywords: ['파이썬', 'BeautifulSoup', '크롤링', '웹스크래핑'], category_hint: '웹크롤링' },
+        { id: 'py_video', label: '영상/오디오 처리 (moviepy, FFmpeg)', keywords: ['파이썬', 'moviepy', 'FFmpeg', '영상처리', '오디오'], category_hint: '다목적' },
+        { id: 'py_automate', label: '업무 자동화 스크립트', keywords: ['파이썬', '자동화', '스크립트', '배치'], category_hint: '업무자동화' }
+      ]
+    }
+  },
+
+  // 음악/오디오 생성 관련 모호성 (신규)
+  'music_ambiguity': {
+    pattern: /음악|BGM|배경음악|작곡|뮤직|노래.*만들|사운드.*생성/i,
+    ambiguity_type: '음악/오디오 생성 목적 불명확',
+    questions: {
+      id: 'music_type',
+      question: '어떤 음악/오디오를 만들고 싶으신가요?',
+      options: [
+        { id: 'music_bgm', label: '영상용 배경음악(BGM)을 만들고 싶어요', keywords: ['음악', 'BGM', '배경음악', '영상음악'], category_hint: '음악생성' },
+        { id: 'music_song', label: '보컬이 있는 노래를 만들고 싶어요', keywords: ['음악', '노래', '보컬', '가사'], category_hint: '음악생성' },
+        { id: 'music_effect', label: '효과음/사운드 이펙트를 만들고 싶어요', keywords: ['효과음', '사운드', '이펙트', 'SFX'], category_hint: '오디오편집' },
+        { id: 'music_edit', label: '기존 음악을 편집하고 싶어요', keywords: ['음악편집', '믹싱', '마스터링'], category_hint: '오디오편집' }
       ]
     }
   }
@@ -251,7 +299,8 @@ function extractBasicKeywords(text: string): string[] {
   const keywordList = [
     '문서', '보고서', '이메일', '데이터', '분석', 'SNS', '마케팅', 
     '자동화', '일정', '회의', '녹음', '이미지', '영상', '고객', 
-    '개발', '리서치', '음향', '오디오', '유튜브'
+    '개발', '리서치', '음향', '오디오', '유튜브', '파이썬', '크롤링',
+    '음악', 'BGM', '스크립트', '코딩', '브라우저'
   ];
   
   for (const kw of keywordList) {
