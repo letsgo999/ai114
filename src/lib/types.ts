@@ -60,6 +60,7 @@ export interface AITool {
 export interface Bindings {
   DB: D1Database;
   GEMINI_API_KEY: string;
+  OPENAI_API_KEY: string;
 }
 
 // 요청/응답 타입

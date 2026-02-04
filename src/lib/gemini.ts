@@ -18,6 +18,15 @@ interface GeminiResponse {
   }>;
 }
 
+// OpenAI API 응답 타입
+interface OpenAIResponse {
+  choices: Array<{
+    message: {
+      content: string;
+    };
+  }>;
+}
+
 // AI 코칭 결과 타입
 export interface AICoachingResult {
   summary: string;           // 업무 분석 요약
@@ -217,7 +226,52 @@ function parseJSONResponse(text: string): AICoachingResult {
   }
 }
 
-// 메인 함수: AI 코칭 코멘트 생성
+// OpenAI API 호출 함수 (gpt-4o-mini)
+export async function callOpenAIAPI(
+  apiKey: string,
+  prompt: string
+): Promise<string> {
+  const response = await fetch(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: '당신은 AI 활용 업무 자동화 전문 코치입니다. JSON 형식으로만 응답하세요.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 4096,
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json() as OpenAIResponse;
+  
+  if (!data.choices || data.choices.length === 0) {
+    throw new Error('No response from OpenAI API');
+  }
+
+  return data.choices[0].message.content;
+}
+
+// 메인 함수: Gemini API로 AI 코칭 코멘트 생성
 export async function generateAICoaching(
   apiKey: string,
   taskInfo: {
@@ -235,6 +289,28 @@ export async function generateAICoaching(
   const prompt = buildCoachingPrompt(taskInfo, recommendation);
   
   const response = await callGeminiAPI(apiKey, prompt);
+  
+  return parseJSONResponse(response);
+}
+
+// OpenAI API로 AI 코칭 코멘트 생성 (대안 API)
+export async function generateAICoachingWithOpenAI(
+  apiKey: string,
+  taskInfo: {
+    name: string;
+    organization: string;
+    department: string;
+    job_description: string;
+    repeat_cycle: string;
+    automation_request: string;
+    estimated_hours: number;
+    current_tools: string | null;
+  },
+  recommendation: RecommendationResult
+): Promise<AICoachingResult> {
+  const prompt = buildCoachingPrompt(taskInfo, recommendation);
+  
+  const response = await callOpenAIAPI(apiKey, prompt);
   
   return parseJSONResponse(response);
 }

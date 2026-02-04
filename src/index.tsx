@@ -8,7 +8,7 @@ import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
 import type { Bindings, Task, AITool, Comment, CreateTaskRequest, TaskWithRecommendation } from './lib/types'
 import { recommendTools } from './lib/recommendation'
-import { generateAICoaching, generateFallbackCoaching, AICoachingResult } from './lib/gemini'
+import { generateAICoaching, generateAICoachingWithOpenAI, generateFallbackCoaching, AICoachingResult } from './lib/gemini'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -256,84 +256,64 @@ app.post('/api/tasks', async (c) => {
       body.estimated_hours || 4
     )
     
-    // Gemini API를 통한 AI 코칭 코멘트 생성 (최대 4회 시도: 초기 1회 + 재시도 3회)
+    // AI 코칭 코멘트 생성: Gemini → OpenAI → 카테고리별 폴백
     let aiCoaching: AICoachingResult
     const geminiApiKey = c.env.GEMINI_API_KEY
-    const MAX_RETRIES = 3
-    const RETRY_DELAY_MS = 5000
+    const openaiApiKey = c.env.OPENAI_API_KEY
     
-    // 재시도 헬퍼 함수
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    const taskInfoForAI = {
+      name: body.name,
+      organization: body.organization,
+      department: body.department,
+      job_description: body.job_description,
+      repeat_cycle: body.repeat_cycle,
+      automation_request: body.automation_request,
+      estimated_hours: body.estimated_hours || 4,
+      current_tools: body.current_tools || null
+    }
     
+    let aiSource = 'fallback' // 응답 출처 추적
+    
+    // 1단계: Gemini API 시도
     if (geminiApiKey) {
-      let lastError: any = null
-      let success = false
-      
-      // 초기 시도 + 최대 3회 재시도 (총 4회)
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          if (attempt > 0) {
-            console.log(`Gemini API 재시도 ${attempt}/${MAX_RETRIES} (5초 대기 후)`)
-            await delay(RETRY_DELAY_MS)
+      try {
+        console.log('1단계: Gemini API 호출 시도...')
+        aiCoaching = await generateAICoaching(geminiApiKey, taskInfoForAI, recommendation)
+        aiSource = 'gemini'
+        console.log('✓ Gemini API 성공')
+      } catch (geminiError) {
+        console.error('✗ Gemini API 실패:', geminiError)
+        
+        // 2단계: OpenAI API 시도 (Gemini 실패 시)
+        if (openaiApiKey) {
+          try {
+            console.log('2단계: OpenAI API (gpt-4o-mini) 호출 시도...')
+            aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
+            aiSource = 'openai'
+            console.log('✓ OpenAI API 성공')
+          } catch (openaiError) {
+            console.error('✗ OpenAI API 실패:', openaiError)
+            // 3단계: 폴백으로 이동
           }
-          
-          aiCoaching = await generateAICoaching(
-            geminiApiKey,
-            {
-              name: body.name,
-              organization: body.organization,
-              department: body.department,
-              job_description: body.job_description,
-              repeat_cycle: body.repeat_cycle,
-              automation_request: body.automation_request,
-              estimated_hours: body.estimated_hours || 4,
-              current_tools: body.current_tools || null
-            },
-            recommendation
-          )
-          success = true
-          break // 성공 시 루프 탈출
-        } catch (aiError) {
-          lastError = aiError
-          console.error(`Gemini API 시도 ${attempt + 1}/${MAX_RETRIES + 1} 실패:`, aiError)
         }
       }
-      
-      // 모든 시도 실패 시 카테고리별 특화 폴백 사용
-      if (!success) {
-        console.error(`Gemini API ${MAX_RETRIES + 1}회 시도 모두 실패, 카테고리별 폴백 사용:`, lastError)
-        console.log(`자동화 요청사항 기반 카테고리 매칭: "${body.automation_request}" → ${recommendation.category}`)
-        aiCoaching = generateFallbackCoaching(
-          {
-            name: body.name,
-            organization: body.organization,
-            department: body.department,
-            job_description: body.job_description,
-            repeat_cycle: body.repeat_cycle,
-            automation_request: body.automation_request,
-            estimated_hours: body.estimated_hours || 4,
-            current_tools: body.current_tools || null
-          },
-          recommendation
-        )
+    } else if (openaiApiKey) {
+      // Gemini 키 없고 OpenAI 키만 있는 경우
+      try {
+        console.log('Gemini 키 없음, OpenAI API (gpt-4o-mini) 호출 시도...')
+        aiCoaching = await generateAICoachingWithOpenAI(openaiApiKey, taskInfoForAI, recommendation)
+        aiSource = 'openai'
+        console.log('✓ OpenAI API 성공')
+      } catch (openaiError) {
+        console.error('✗ OpenAI API 실패:', openaiError)
       }
-    } else {
-      // API 키가 없으면 카테고리별 특화 폴백 코칭 사용
-      console.log('No Gemini API key, using category-specific fallback for:', recommendation.category)
+    }
+    
+    // 3단계: 모든 API 실패 시 카테고리별 특화 폴백 사용
+    if (aiSource === 'fallback') {
+      console.log('3단계: 카테고리별 특화 폴백 템플릿 사용')
       console.log(`자동화 요청사항 기반 카테고리 매칭: "${body.automation_request}" → ${recommendation.category}`)
-      aiCoaching = generateFallbackCoaching(
-        {
-          name: body.name,
-          organization: body.organization,
-          department: body.department,
-          job_description: body.job_description,
-          repeat_cycle: body.repeat_cycle,
-          automation_request: body.automation_request,
-          estimated_hours: body.estimated_hours || 4,
-          current_tools: body.current_tools || null
-        },
-        recommendation
-      )
+      aiCoaching = generateFallbackCoaching(taskInfoForAI, recommendation)
     }
     
     const now = Date.now()
