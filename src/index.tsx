@@ -256,29 +256,53 @@ app.post('/api/tasks', async (c) => {
       body.estimated_hours || 4
     )
     
-    // Gemini API를 통한 AI 코칭 코멘트 생성
+    // Gemini API를 통한 AI 코칭 코멘트 생성 (최대 4회 시도: 초기 1회 + 재시도 3회)
     let aiCoaching: AICoachingResult
     const geminiApiKey = c.env.GEMINI_API_KEY
+    const MAX_RETRIES = 3
+    const RETRY_DELAY_MS = 5000
+    
+    // 재시도 헬퍼 함수
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
     
     if (geminiApiKey) {
-      try {
-        aiCoaching = await generateAICoaching(
-          geminiApiKey,
-          {
-            name: body.name,
-            organization: body.organization,
-            department: body.department,
-            job_description: body.job_description,
-            repeat_cycle: body.repeat_cycle,
-            automation_request: body.automation_request,
-            estimated_hours: body.estimated_hours || 4,
-            current_tools: body.current_tools || null
-          },
-          recommendation
-        )
-      } catch (aiError) {
-        console.error('Gemini API error, using category-specific fallback:', aiError)
-        // Gemini API 실패 시 카테고리별 특화 폴백 코칭 사용
+      let lastError: any = null
+      let success = false
+      
+      // 초기 시도 + 최대 3회 재시도 (총 4회)
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          if (attempt > 0) {
+            console.log(`Gemini API 재시도 ${attempt}/${MAX_RETRIES} (5초 대기 후)`)
+            await delay(RETRY_DELAY_MS)
+          }
+          
+          aiCoaching = await generateAICoaching(
+            geminiApiKey,
+            {
+              name: body.name,
+              organization: body.organization,
+              department: body.department,
+              job_description: body.job_description,
+              repeat_cycle: body.repeat_cycle,
+              automation_request: body.automation_request,
+              estimated_hours: body.estimated_hours || 4,
+              current_tools: body.current_tools || null
+            },
+            recommendation
+          )
+          success = true
+          break // 성공 시 루프 탈출
+        } catch (aiError) {
+          lastError = aiError
+          console.error(`Gemini API 시도 ${attempt + 1}/${MAX_RETRIES + 1} 실패:`, aiError)
+        }
+      }
+      
+      // 모든 시도 실패 시 카테고리별 특화 폴백 사용
+      if (!success) {
+        console.error(`Gemini API ${MAX_RETRIES + 1}회 시도 모두 실패, 카테고리별 폴백 사용:`, lastError)
+        console.log(`자동화 요청사항 기반 카테고리 매칭: "${body.automation_request}" → ${recommendation.category}`)
         aiCoaching = generateFallbackCoaching(
           {
             name: body.name,
@@ -296,6 +320,7 @@ app.post('/api/tasks', async (c) => {
     } else {
       // API 키가 없으면 카테고리별 특화 폴백 코칭 사용
       console.log('No Gemini API key, using category-specific fallback for:', recommendation.category)
+      console.log(`자동화 요청사항 기반 카테고리 매칭: "${body.automation_request}" → ${recommendation.category}`)
       aiCoaching = generateFallbackCoaching(
         {
           name: body.name,
