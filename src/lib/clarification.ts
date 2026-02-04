@@ -188,6 +188,38 @@ const AMBIGUOUS_PATTERNS: Record<string, {
         { id: 'music_edit', label: '기존 음악을 편집하고 싶어요', keywords: ['음악편집', '믹싱', '마스터링'], category_hint: '오디오편집' }
       ]
     }
+  },
+
+  // TTS/음성 합성 관련 모호성 (신규)
+  'tts_ambiguity': {
+    pattern: /TTS|음성합성|나레이션|더빙|AI성우|AI보이스|음성.*생성|목소리.*만들/i,
+    ambiguity_type: 'TTS/음성 합성 용도 불명확',
+    questions: {
+      id: 'tts_type',
+      question: '어떤 목적의 음성을 생성하고 싶으신가요?',
+      options: [
+        { id: 'tts_narration', label: '영상/팟캐스트용 나레이션을 만들고 싶어요', keywords: ['TTS', '나레이션', '팟캐스트', '음성합성'], category_hint: '음성생성' },
+        { id: 'tts_dubbing', label: '영상 더빙/외국어 음성을 만들고 싶어요', keywords: ['TTS', '더빙', '다국어', '음성합성'], category_hint: '음성생성' },
+        { id: 'tts_clone', label: '특정 목소리를 복제/클론하고 싶어요', keywords: ['음성복제', '보이스클론', 'TTS', 'AI성우'], category_hint: '음성생성' },
+        { id: 'tts_korean', label: '한국어 자연스러운 음성이 필요해요', keywords: ['TTS', '한국어', '음성합성', '슈퍼톤'], category_hint: '음성생성' }
+      ]
+    }
+  },
+
+  // 자막/STT 관련 모호성 (신규)
+  'subtitle_ambiguity': {
+    pattern: /자막|STT|음성인식|전사|자동.*자막|음성.*텍스트/i,
+    ambiguity_type: '자막/음성인식 용도 불명확',
+    questions: {
+      id: 'subtitle_type',
+      question: '어떤 자막/음성인식 작업이 필요하신가요?',
+      options: [
+        { id: 'sub_auto', label: '영상에 자막을 자동으로 생성하고 싶어요', keywords: ['자막', 'STT', '자동자막', '자막생성'], category_hint: '자막생성' },
+        { id: 'sub_translate', label: '자막을 다른 언어로 번역하고 싶어요', keywords: ['자막', '번역', '다국어', '번역자막'], category_hint: '자막생성' },
+        { id: 'sub_meeting', label: '회의/강의 내용을 텍스트로 변환하고 싶어요', keywords: ['STT', '전사', '회의록', '음성인식'], category_hint: '회의' },
+        { id: 'sub_edit', label: '자막을 편집/수정하고 싶어요', keywords: ['자막편집', '자막', '타이밍', '캡션'], category_hint: '영상편집' }
+      ]
+    }
   }
 };
 
