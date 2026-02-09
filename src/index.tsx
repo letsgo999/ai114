@@ -2714,8 +2714,9 @@ function renderReportPage(taskId: string): string {
         return;
       }
       
-      const coaching = taskData.ai_coaching;
-      const recommendation = taskData.recommendation;
+      // 핵심 수정: parsedRecommendation에서 데이터 추출
+      const recommendation = taskData.parsedRecommendation;
+      const coaching = recommendation?.ai_coaching;
       const comparison = coaching?.comparison;
       const isComparison = comparison?.gemini && comparison?.openai;
       const NL = String.fromCharCode(10);  // 줄바꿈
