@@ -1993,6 +1993,9 @@ function renderReportPage(taskId: string): string {
 
   <!-- 액션 버튼 (상단 고정) -->
   <div class="no-print fixed top-4 right-4 z-40 flex gap-2 flex-wrap justify-end">
+    <button onclick="downloadMarkdown()" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition shadow-lg" title="개발용 마크다운 파일 다운로드">
+      <i class="fas fa-code mr-2"></i>개발용 MD
+    </button>
     <button onclick="downloadPDF()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition shadow-lg">
       <i class="fas fa-file-pdf mr-2"></i>PDF
     </button>
@@ -2702,6 +2705,225 @@ function renderReportPage(taskId: string): string {
         document.getElementById('learning-roadmap-section').style.display = 'none';
         document.getElementById('coaching-tips-section').style.display = 'none';
       }
+    }
+    
+    // 마크다운 다운로드 (개발용)
+    function downloadMarkdown() {
+      if (!taskData) {
+        alert('보고서 데이터가 없습니다.');
+        return;
+      }
+      
+      const coaching = taskData.ai_coaching;
+      const recommendation = taskData.recommendation;
+      const comparison = coaching?.comparison;
+      const isComparison = comparison?.gemini && comparison?.openai;
+      const NL = String.fromCharCode(10);  // 줄바꿈
+      const BT = String.fromCharCode(96);  // 백틱
+      const CB = BT + BT + BT;  // 코드블록
+      
+      // 마크다운 문서 생성
+      let md = '';
+      
+      // 헤더
+      md += '# AI 활용 업무 자동화 진단 보고서' + NL + NL;
+      md += '> **개발용 소스 문서** - 자동화 앱 개발 시 참조용' + NL + NL;
+      md += '---' + NL + NL;
+      
+      // 메타 정보
+      md += '## 📋 기본 정보' + NL + NL;
+      md += '| 항목 | 내용 |' + NL;
+      md += '|------|------|' + NL;
+      md += '| **이름** | ' + (taskData.name || '-') + ' |' + NL;
+      md += '| **소속** | ' + (taskData.organization || '-') + ' / ' + (taskData.department || '-') + ' |' + NL;
+      md += '| **이메일** | ' + (taskData.email || '-') + ' |' + NL;
+      md += '| **분석 일시** | ' + new Date(taskData.created_at).toLocaleString('ko-KR') + ' |' + NL;
+      md += '| **AI 엔진** | ' + (coaching?.ai_engine_info?.selected_engine || 'Gemini') + ' |' + NL;
+      md += '| **진단 카테고리** | ' + (recommendation?.category || taskData.task_category || '-') + ' |' + NL + NL;
+      
+      // 자동화 요청 내용
+      md += '## 🎯 자동화 요청 내용' + NL + NL;
+      md += '### 업무 설명' + NL;
+      md += CB + NL + (taskData.job_description || '-') + NL + CB + NL + NL;
+      md += '### 자동화 요청사항' + NL;
+      md += CB + NL + (taskData.automation_request || '-') + NL + CB + NL + NL;
+      md += '### 반복 주기' + NL;
+      md += '- **주기**: ' + (taskData.repeat_cycle || '-') + NL;
+      md += '- **예상 소요시간**: ' + (taskData.estimated_hours || 4) + '시간/회' + NL + NL;
+      
+      // 현재 사용 도구
+      if (taskData.current_tools) {
+        md += '### 현재 사용 도구' + NL;
+        md += CB + NL + taskData.current_tools + NL + CB + NL + NL;
+      }
+      
+      md += '---' + NL + NL;
+      
+      // AI 분석 요약
+      md += '## 🤖 AI 분석 요약' + NL + NL;
+      if (coaching?.summary) {
+        md += coaching.summary + NL + NL;
+      }
+      
+      // 추천 도구 TOP 5
+      md += '## 🛠️ 추천 도구 TOP 5' + NL + NL;
+      if (recommendation?.recommended_tools && recommendation.recommended_tools.length > 0) {
+        md += '| 순위 | 도구명 | 카테고리 | 매칭 점수 | 추천 이유 |' + NL;
+        md += '|------|--------|----------|-----------|-----------|' + NL;
+        recommendation.recommended_tools.forEach((item, idx) => {
+          const tool = item.tool;
+          md += '| ' + (idx + 1) + ' | **' + tool.name + '** | ' + tool.category + ' | ' + Math.round(item.score) + '점 | ' + (item.reason || '-') + ' |' + NL;
+        });
+        md += NL;
+        
+        // 도구 상세 정보
+        md += '### 도구 상세 정보' + NL + NL;
+        recommendation.recommended_tools.forEach((item, idx) => {
+          const tool = item.tool;
+          md += '#### ' + (idx + 1) + '. ' + tool.name + NL;
+          md += '- **카테고리**: ' + tool.category + NL;
+          md += '- **설명**: ' + (tool.description || '-') + NL;
+          md += '- **주요 용도**: ' + (tool.use_cases || '-') + NL;
+          md += '- **난이도**: ' + (tool.difficulty || '-') + NL;
+          md += '- **가격 정책**: ' + (tool.pricing_type || '-') + NL;
+          if (tool.website_url) {
+            md += '- **링크**: ' + tool.website_url + NL;
+          }
+          md += NL;
+        });
+      }
+      
+      md += '---' + NL + NL;
+      
+      // 워크플로우
+      md += '## 📝 자동화 워크플로우' + NL + NL;
+      
+      // 비교 모드인 경우
+      if (isComparison) {
+        md += '### Gemini 제안 워크플로우' + NL + NL;
+        if (comparison.gemini.workflow && comparison.gemini.workflow.length > 0) {
+          comparison.gemini.workflow.forEach((step, idx) => {
+            md += '#### Step ' + (idx + 1) + ': ' + (step.step_name || step.title || '단계 ' + (idx + 1)) + NL;
+            md += '- **도구**: ' + (step.tool || step.recommended_tool || '-') + NL;
+            md += '- **설명**: ' + (step.description || '-') + NL;
+            if (step.prompt_example) {
+              md += '- **프롬프트 예시**:' + NL + CB + NL + step.prompt_example + NL + CB + NL;
+            }
+            if (step.expected_output) {
+              md += '- **예상 결과물**: ' + step.expected_output + NL;
+            }
+            if (step.time_estimate) {
+              md += '- **예상 소요시간**: ' + step.time_estimate + NL;
+            }
+            md += NL;
+          });
+        }
+        
+        md += '### OpenAI(ChatGPT) 제안 워크플로우' + NL + NL;
+        if (comparison.openai.workflow && comparison.openai.workflow.length > 0) {
+          comparison.openai.workflow.forEach((step, idx) => {
+            md += '#### Step ' + (idx + 1) + ': ' + (step.step_name || step.title || '단계 ' + (idx + 1)) + NL;
+            md += '- **도구**: ' + (step.tool || step.recommended_tool || '-') + NL;
+            md += '- **설명**: ' + (step.description || '-') + NL;
+            if (step.prompt_example) {
+              md += '- **프롬프트 예시**:' + NL + CB + NL + step.prompt_example + NL + CB + NL;
+            }
+            if (step.expected_output) {
+              md += '- **예상 결과물**: ' + step.expected_output + NL;
+            }
+            if (step.time_estimate) {
+              md += '- **예상 소요시간**: ' + step.time_estimate + NL;
+            }
+            md += NL;
+          });
+        }
+      } else {
+        // 단일 모드
+        const workflow = coaching?.workflow || [];
+        if (workflow.length > 0) {
+          workflow.forEach((step, idx) => {
+            md += '### Step ' + (idx + 1) + ': ' + (step.step_name || step.title || '단계 ' + (idx + 1)) + NL;
+            md += '- **도구**: ' + (step.tool || step.recommended_tool || '-') + NL;
+            md += '- **설명**: ' + (step.description || '-') + NL;
+            if (step.prompt_example) {
+              md += '- **프롬프트 예시**:' + NL + CB + NL + step.prompt_example + NL + CB + NL;
+            }
+            if (step.expected_output) {
+              md += '- **예상 결과물**: ' + step.expected_output + NL;
+            }
+            if (step.time_estimate) {
+              md += '- **예상 소요시간**: ' + step.time_estimate + NL;
+            }
+            md += NL;
+          });
+        }
+      }
+      
+      md += '---' + NL + NL;
+      
+      // 시간 분석
+      md += '## ⏱️ 시간 분석' + NL + NL;
+      const timeAnalysis = coaching?.time_analysis || recommendation?.time_saving;
+      if (timeAnalysis) {
+        md += '| 항목 | 값 |' + NL;
+        md += '|------|-----|' + NL;
+        md += '| **현재 소요시간** | ' + (taskData.estimated_hours || 4) + '시간 |' + NL;
+        md += '| **자동화 후 예상** | ' + (timeAnalysis.new_hours || timeAnalysis.after || '-') + ' |' + NL;
+        md += '| **절감 시간** | ' + (timeAnalysis.saved_hours || timeAnalysis.saved || '-') + ' |' + NL;
+        md += '| **효율성 향상** | ' + (timeAnalysis.percentage || timeAnalysis.efficiency_gain || '-') + '% |' + NL + NL;
+      }
+      
+      // 코칭 팁
+      md += '## 💡 코칭 팁' + NL + NL;
+      const tips = coaching?.coaching_tips || [];
+      if (tips.length > 0) {
+        tips.forEach((tip, idx) => {
+          if (typeof tip === 'string') {
+            md += (idx + 1) + '. ' + tip + NL;
+          } else {
+            md += (idx + 1) + '. **' + (tip.title || '팁 ' + (idx + 1)) + '**: ' + (tip.content || tip.description || '') + NL;
+          }
+        });
+        md += NL;
+      }
+      
+      // 학습 로드맵
+      md += '## 📚 학습 로드맵' + NL + NL;
+      const roadmap = coaching?.learning_roadmap || [];
+      if (roadmap.length > 0) {
+        md += '| 우선순위 | 도구/스킬 | 예상 학습시간 | 리소스 |' + NL;
+        md += '|----------|-----------|---------------|--------|' + NL;
+        roadmap.forEach((item, idx) => {
+          md += '| ' + (idx + 1) + ' | **' + (item.tool || item.skill || '-') + '** | ' + (item.estimated_time || item.time || '-') + ' | ' + (item.resources || item.resource || '-') + ' |' + NL;
+        });
+        md += NL;
+      }
+      
+      // 결론
+      if (coaching?.conclusion) {
+        md += '---' + NL + NL;
+        md += '## 🎯 종합 결론' + NL + NL;
+        md += coaching.conclusion + NL + NL;
+      }
+      
+      // 푸터
+      md += '---' + NL + NL;
+      md += '> **생성 정보**' + NL;
+      md += '> - 생성일: ' + new Date().toLocaleString('ko-KR') + NL;
+      md += '> - Task ID: ' + BT + taskData.id + BT + NL;
+      md += '> - AI 엔진: ' + (coaching?.ai_engine_info?.selected_engine || 'Gemini') + NL;
+      md += '> - 소스: AI공부방 자동화 코칭 가이드' + NL;
+      
+      // 파일 다운로드
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'AI자동화_진단보고서_' + taskData.name + '_' + new Date().toISOString().split('T')[0] + '.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
     
     // PDF 다운로드
