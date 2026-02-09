@@ -94,17 +94,17 @@ const AMBIGUOUS_PATTERNS: Record<string, {
     }
   },
 
-  // 자동화 관련 모호성
+  // 자동화 관련 모호성 (AI 워크플로우 강화)
   'automation_ambiguity': {
-    pattern: /자동화|자동으로|반복.*업무|업무.*반복/i,
+    pattern: /자동화|자동으로|반복.*업무|업무.*반복|워크플로우|파이프라인/i,
     ambiguity_type: '자동화 대상 불명확',
     questions: {
       id: 'automation_type',
       question: '어떤 종류의 업무를 자동화하고 싶으신가요?',
       options: [
-        { id: 'auto_data', label: '데이터 입력/처리를 자동화하고 싶어요', keywords: ['데이터', '입력', '처리', '엑셀'], category_hint: '업무자동화' },
-        { id: 'auto_workflow', label: '여러 앱 간의 연동을 자동화하고 싶어요', keywords: ['워크플로우', '연동', 'API', '통합'], category_hint: '업무자동화' },
-        { id: 'auto_email', label: '이메일/알림 발송을 자동화하고 싶어요', keywords: ['이메일', '알림', '발송', '자동발송'], category_hint: '업무자동화' },
+        { id: 'auto_ai_workflow', label: 'AI 기반 워크플로우를 만들고 싶어요 (프롬프트 체이닝)', keywords: ['AI워크플로우', '프롬프트', '체이닝', 'Opal', '자동화'], category_hint: '업무자동화' },
+        { id: 'auto_python', label: '파이썬으로 데이터 파이프라인을 만들고 싶어요', keywords: ['파이썬', '파이프라인', 'ETL', 'Prefect', 'Airflow', '오케스트레이션'], category_hint: '업무자동화' },
+        { id: 'auto_app_connect', label: '여러 앱 간의 연동을 자동화하고 싶어요', keywords: ['워크플로우', '연동', 'API', '통합', '앱연동'], category_hint: '업무자동화' },
         { id: 'auto_report', label: '보고서/리포트 생성을 자동화하고 싶어요', keywords: ['보고서', '리포트', '자동생성'], category_hint: '데이터분석' }
       ]
     }
@@ -126,18 +126,18 @@ const AMBIGUOUS_PATTERNS: Record<string, {
     }
   },
 
-  // 데이터 관련 모호성
+  // 데이터 관련 모호성 (웹 데이터 vs 로컬 파일 구분 강화)
   'data_ambiguity': {
-    pattern: /데이터|분석|통계|엑셀|스프레드시트/i,
+    pattern: /데이터|분석|통계|엑셀|스프레드시트|인사이트|시각화/i,
     ambiguity_type: '데이터 작업 유형 불명확',
     questions: {
       id: 'data_type',
-      question: '어떤 데이터 작업이 필요하신가요?',
+      question: '어떤 데이터를 분석하고 싶으신가요?',
       options: [
-        { id: 'data_analyze', label: '데이터를 분석하고 인사이트를 얻고 싶어요', keywords: ['분석', '인사이트', '통계'], category_hint: '데이터분석' },
-        { id: 'data_visualize', label: '차트/그래프로 시각화하고 싶어요', keywords: ['시각화', '차트', '그래프', '대시보드'], category_hint: '데이터분석' },
-        { id: 'data_clean', label: '데이터를 정리/가공하고 싶어요', keywords: ['정리', '가공', '클렌징'], category_hint: '데이터분석' },
-        { id: 'data_collect', label: '데이터를 수집하고 싶어요', keywords: ['수집', '크롤링', '스크래핑'], category_hint: '웹크롤링' }
+        { id: 'data_web', label: '웹사이트/검색 결과 데이터를 분석하고 싶어요', keywords: ['웹데이터', '웹분석', '검색결과', '인사이트', '트렌드', '웹페이지'], category_hint: '웹데이터분석' },
+        { id: 'data_local', label: '엑셀/CSV 등 파일을 업로드해서 분석하고 싶어요', keywords: ['엑셀', 'CSV', '로컬파일', '파일분석', '업로드', '스프레드시트'], category_hint: '로컬파일분석' },
+        { id: 'data_visualize', label: '차트/그래프로 시각화하고 싶어요', keywords: ['시각화', '차트', '그래프', '대시보드', 'Matplotlib'], category_hint: '데이터분석' },
+        { id: 'data_collect', label: '웹에서 데이터를 수집/크롤링하고 싶어요', keywords: ['수집', '크롤링', '스크래핑', '웹자동화'], category_hint: '웹크롤링' }
       ]
     }
   },
